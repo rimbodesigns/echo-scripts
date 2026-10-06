@@ -76,6 +76,8 @@ function initAfterEnterFunctions(next) {
   if (has('[data-drag-gallery]')) initDragGallery();
   if (has('[data-bouncy-tabs-init]')) initBouncyContentTabs();
   if (has('[data-reveal-group]')) initRevealGroups();
+  if (has('[data-3d-tornado-init]')) playTornadoIntro();
+  if (has('[data-scroll-indicator]')) initScrollIndicator();
 
   if (hasLenis) {
     lenis.resize();
@@ -967,6 +969,9 @@ function init3DCardsTornado() {
   const edgeEase = gsap.parseEase("power2.inOut"); // easing for edge scaling
   const minScale = 1; // smallest scale for distant cards
   const backDarkness = 0.75; // darkening applied to cards in back
+  const introDuration = 1.6; // page-load intro: each card grows from 0 to full size
+  const introStagger = 0.035; // delay per card, counted outward from the center card
+  const introEase = "expo.out";
 
   // Observer targets window and locks the vertical axis, which swallows page
   // scrolling on touch devices — desktop only.
@@ -1032,9 +1037,13 @@ function init3DCardsTornado() {
       return edgeEase(progress);
     }
 
+    // Intro scale per card: starts at 0 and is played by playTornadoIntro() once the
+    // page has entered; null means no intro is running (every card at full size).
+    let introScales = reducedMotion ? null : [];
+
     function render() {
       const radius = orbitDepth * state.em;
-      state.cards.forEach((card) => {
+      state.cards.forEach((card, i) => {
         const startIndex = parseFloat(card.dataset.index);
         const loopIndex = ((startIndex + state.progress) % state.amount + state.amount) %
           state.amount;
@@ -1044,7 +1053,8 @@ function init3DCardsTornado() {
         const center = 1 - Math.min(Math.abs(index) / (state.amount * 0.5), 1);
         const y = index * state.cardGap;
         const baseScale = minScale + center * (1 - minScale);
-        const scale = baseScale * getEdgeScale(y);
+        const intro = introScales ? (introScales[i]?.v ?? 0) : 1;
+        const scale = baseScale * getEdgeScale(y) * intro;
         const backAmount = gsap.utils.clamp(0, 1, (1 - Math.cos(angleRad)) * 0.5);
         const brightness = 1 - backAmount * backDarkness;
         const blur = backAmount * backBlur;
@@ -1093,10 +1103,34 @@ function init3DCardsTornado() {
 
     function rebuild() {
       buildCards();
+      if (introScales) introScales = null; // a resize mid-intro just shows everything
       render();
     }
 
     rebuild();
+    if (!reducedMotion) introScales = state.cards.map(() => ({ v: 0 }));
+    render();
+
+    // Cards open up one by one, starting at the center card and moving outward
+    let introFallback;
+    container._playIntro = () => {
+      introFallback?.kill();
+      if (!introScales || container._introPlayed) return;
+      container._introPlayed = true;
+      gsap.to(introScales, {
+        v: 1,
+        duration: introDuration,
+        ease: introEase,
+        stagger: (i) => Math.min(i, state.amount - i) * introStagger,
+        onUpdate: () => { if (!state.isActive) render(); },
+        onComplete: () => {
+          introScales = null;
+          render();
+        },
+      });
+    };
+    // Safety net: never leave the cards invisible if afterEnter doesn't fire
+    introFallback = gsap.delayedCall(5, container._playIntro);
 
     if (canHover) {
       inputObserver = Observer.create({
@@ -1135,6 +1169,7 @@ function init3DCardsTornado() {
     // Stop everything when leaving the page
     onPageLeave(() => {
       gsap.ticker.remove(tick);
+      introFallback?.kill();
       inputObserver?.kill();
       inViewObserver.disconnect();
       window.removeEventListener('resize', onResize);
@@ -4248,5 +4283,50 @@ function initRevealGroups() {
         }, textStart)
         .set(images, { clearProps: 'clipPath,scale' });
     });
+  });
+}
+
+// Plays the tornado's page-load intro (built in init3DCardsTornado) once the page has entered
+function playTornadoIntro() {
+  nextPage.querySelectorAll('[data-3d-tornado-init]').forEach(container => {
+    container._playIntro?.();
+  });
+}
+
+// Scroll hint: fades in after the intro, a dot loops down a thin line,
+// hides once the visitor scrolls, and scrolls one screen down on click.
+function initScrollIndicator() {
+  // Feel — tweak here
+  const showDelay = 1.6; // seconds after the page has entered
+  const hideAfter = 40; // px scrolled before the indicator fades out
+
+  nextPage.querySelectorAll('[data-scroll-indicator]').forEach(el => {
+    const dot = el.querySelector('[data-scroll-indicator-dot]');
+
+    gsap.set(el, { autoAlpha: 0 });
+    gsap.to(el, { autoAlpha: 1, duration: 0.8, ease: 'power2.out', delay: reducedMotion ? 0 : showDelay });
+
+    if (dot && !reducedMotion) {
+      gsap.fromTo(dot, { yPercent: -100 }, {
+        yPercent: 100,
+        duration: 1.6,
+        ease: 'osmo',
+        repeat: -1,
+        repeatDelay: 0.3,
+      });
+    }
+
+    ScrollTrigger.create({
+      start: hideAfter,
+      end: 'max',
+      onToggle: self => gsap.to(el, { autoAlpha: self.isActive ? 0 : 1, duration: 0.4, overwrite: 'auto' }),
+    });
+
+    el.addEventListener('click', () => {
+      if (lenis) lenis.scrollTo(window.innerHeight, { duration: 1.4 });
+      else window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
+    });
+
+    onPageLeave(() => gsap.killTweensOf([el, dot].filter(Boolean)));
   });
 }
