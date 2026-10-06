@@ -4236,6 +4236,7 @@ function initBouncyContentTabs() {
 // Reveal groups: images open up, then text lines slide in.
 // [data-reveal-group] is hidden by CSS (site head) until this runs, so nothing flashes.
 // Children: [data-reveal="image"] and [data-reveal="text"], animated in DOM order.
+// Optional data-reveal-delay="1.2" (seconds) waits before the group starts.
 function initRevealGroups() {
   // Feel — tweak here
   const imageDuration = 1.4;
@@ -4249,6 +4250,8 @@ function initRevealGroups() {
   nextPage.querySelectorAll('[data-reveal-group]').forEach(group => {
     const images = group.querySelectorAll('[data-reveal="image"]');
     const texts = group.querySelectorAll('[data-reveal="text"]');
+    const delay = parseFloat(group.dataset.revealDelay) || 0;
+    const textAt = images.length ? textStart : 0; // text-only groups start right away
 
     if (reducedMotion) {
       gsap.set(group, { visibility: 'visible' });
@@ -4261,7 +4264,7 @@ function initRevealGroups() {
         SplitText.create(el, { type: 'lines', mask: 'lines' }).lines
       );
 
-      const tl = gsap.timeline();
+      const tl = gsap.timeline({ delay });
       tl.set(group, { visibility: 'visible' }, 0)
         .fromTo(images, {
           clipPath: 'inset(100% 0% 0% 0%)',
@@ -4280,7 +4283,7 @@ function initRevealGroups() {
           duration: textDuration,
           ease: textEase,
           stagger: textStagger,
-        }, textStart)
+        }, textAt)
         .set(images, { clearProps: 'clipPath,scale' });
     });
   });
@@ -4297,7 +4300,7 @@ function playTornadoIntro() {
 // hides once the visitor scrolls, and scrolls one screen down on click.
 function initScrollIndicator() {
   // Feel — tweak here
-  const showDelay = 1.6; // seconds after the page has entered
+  const showDelay = 2.6; // seconds after the page has entered (after the hero text)
   const hideAfter = 40; // px scrolled before the indicator fades out
 
   nextPage.querySelectorAll('[data-scroll-indicator]').forEach(el => {
