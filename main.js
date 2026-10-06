@@ -75,6 +75,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-logo-testimonials-init]')) initLogoCardTestimonials();
   if (has('[data-drag-gallery]')) initDragGallery();
   if (has('[data-bouncy-tabs-init]')) initBouncyContentTabs();
+  if (has('[data-reveal-group]')) initRevealGroups();
 
   if (hasLenis) {
     lenis.resize();
@@ -4194,5 +4195,58 @@ function initBouncyContentTabs() {
 
     syncButtonState();
     refreshLayout();
+  });
+}
+
+// Reveal groups: images open up, then text lines slide in.
+// [data-reveal-group] is hidden by CSS (site head) until this runs, so nothing flashes.
+// Children: [data-reveal="image"] and [data-reveal="text"], animated in DOM order.
+function initRevealGroups() {
+  // Feel — tweak here
+  const imageDuration = 1.4;
+  const imageStagger = 0.2;
+  const imageEase = "osmo";
+  const textDuration = 1;
+  const textStagger = 0.08;
+  const textEase = "expo.out";
+  const textStart = 0.8; // seconds after the first image starts
+
+  nextPage.querySelectorAll('[data-reveal-group]').forEach(group => {
+    const images = group.querySelectorAll('[data-reveal="image"]');
+    const texts = group.querySelectorAll('[data-reveal="text"]');
+
+    if (reducedMotion) {
+      gsap.set(group, { visibility: 'visible' });
+      return;
+    }
+
+    // Split after fonts are loaded so the lines are measured correctly
+    document.fonts.ready.then(() => {
+      const lines = [...texts].flatMap(el =>
+        SplitText.create(el, { type: 'lines', mask: 'lines' }).lines
+      );
+
+      const tl = gsap.timeline();
+      tl.set(group, { visibility: 'visible' }, 0)
+        .fromTo(images, {
+          clipPath: 'inset(100% 0% 0% 0%)',
+          scale: 1.15,
+        }, {
+          clipPath: 'inset(0% 0% 0% 0%)',
+          scale: 1,
+          duration: imageDuration,
+          ease: imageEase,
+          stagger: imageStagger,
+        }, 0)
+        .fromTo(lines, {
+          yPercent: 110,
+        }, {
+          yPercent: 0,
+          duration: textDuration,
+          ease: textEase,
+          stagger: textStagger,
+        }, textStart)
+        .set(images, { clearProps: 'clipPath,scale' });
+    });
   });
 }
