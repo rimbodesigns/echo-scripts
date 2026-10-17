@@ -3900,9 +3900,49 @@ function initDragGallery() {
       snapPoints = items.map((item) => gsap.utils.clamp(minX, 0, -(item.offsetLeft - padLeft)));
       snapPoints.push(minX);
       draggable.applyBounds({ minX, maxX: 0 });
+      updateArrows();
     }
 
     const closestSnap = (x) => gsap.utils.snap(snapPoints, x);
+
+    // Optional arrow buttons as a back-up for dragging: [data-drag-gallery-prev/next]
+    // next to the gallery (anywhere in its parent element)
+    const prevBtn = gallery.parentElement.querySelector('[data-drag-gallery-prev]');
+    const nextBtn = gallery.parentElement.querySelector('[data-drag-gallery-next]');
+
+    // Unique snap positions, from first (0) to last (minX)
+    const stops = () => [...new Set(snapPoints)].sort((a, b) => b - a);
+
+    function updateArrows() {
+      if (!prevBtn && !nextBtn) return;
+      const x = gsap.getProperty(track, 'x');
+      const setState = (btn, disabled) => {
+        if (!btn) return;
+        btn.disabled = disabled;
+        btn.style.opacity = disabled ? '0.35' : '';
+        btn.style.cursor = disabled ? 'default' : '';
+      };
+      setState(prevBtn, x >= -1);
+      setState(nextBtn, x <= minX + 1);
+    }
+
+    function step(dir) {
+      const list = stops();
+      const x = gsap.getProperty(track, 'x');
+      const current = list.indexOf(closestSnap(x));
+      const target = list[gsap.utils.clamp(0, list.length - 1, current + dir)];
+      gsap.killTweensOf(track);
+      gsap.to(track, {
+        x: target,
+        duration: snapDuration,
+        ease: snapEase,
+        onUpdate: () => draggable.update(),
+        onComplete: updateArrows,
+      });
+    }
+
+    const onPrev = () => step(-1);
+    const onNext = () => step(1);
 
     const draggable = Draggable.create(track, {
       type: 'x',
@@ -3912,7 +3952,12 @@ function initDragGallery() {
       cursor: 'grab',
       activeCursor: 'grabbing',
       snap: { x: closestSnap },
+      onDragEnd: updateArrows,
+      onThrowComplete: updateArrows,
     })[0];
+
+    if (prevBtn) prevBtn.addEventListener('click', onPrev);
+    if (nextBtn) nextBtn.addEventListener('click', onNext);
 
     // Trackpad: sideways swipes move the gallery, vertical scroll stays with the page
     let wheelTimer;
@@ -3930,6 +3975,7 @@ function initDragGallery() {
           duration: snapDuration,
           ease: snapEase,
           onUpdate: () => draggable.update(),
+          onComplete: updateArrows,
         });
       }, 150);
     }, { passive: false });
@@ -3956,12 +4002,15 @@ function initDragGallery() {
       measure();
       gsap.set(track, { x: closestSnap(gsap.getProperty(track, 'x')) });
       draggable.update();
+      updateArrows();
     }, 150);
     window.addEventListener('resize', onResize);
 
     onPageLeave(() => {
       draggable.kill();
       clearTimeout(wheelTimer);
+      if (prevBtn) prevBtn.removeEventListener('click', onPrev);
+      if (nextBtn) nextBtn.removeEventListener('click', onNext);
       window.removeEventListener('resize', onResize);
     });
   });
