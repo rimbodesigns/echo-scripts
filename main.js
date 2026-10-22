@@ -74,6 +74,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-wavy-marquee-init]')) initWavyMarquee();
   if (has('[data-logo-testimonials-init]')) initLogoCardTestimonials();
   if (has('[data-drag-gallery]')) initDragGallery();
+  if (has('[data-random-call]')) initRandomCall();
   if (has('[data-bouncy-tabs-init]')) initBouncyContentTabs();
   if (has('[data-reveal-group]')) initRevealGroups();
   if (has('[data-3d-tornado-init]')) playTornadoIntro();
@@ -4013,6 +4014,37 @@ function initDragGallery() {
       if (nextBtn) nextBtn.removeEventListener('click', onNext);
       window.removeEventListener('resize', onResize);
     });
+  });
+}
+
+// "Bel ons" link that rings a random team member (50/50 per page view).
+// data-random-call="Lune:+31600000000,Lieke:+31600000000"
+// data-random-call-label="Liever bellen? Bel {name}"   (optional, sets the link text)
+// data-random-call-track="https://hook.example/…"      (optional, gets {person, page} on click)
+function initRandomCall() {
+  nextPage.querySelectorAll('[data-random-call]').forEach((link) => {
+    const people = link.getAttribute('data-random-call').split(',').map((entry) => {
+      const [name, tel] = entry.split(':').map((s) => s.trim());
+      return { name, tel: tel.replace(/[^\d+]/g, '') };
+    }).filter((p) => p.name && p.tel);
+    if (!people.length) return;
+
+    const person = people[Math.floor(Math.random() * people.length)];
+    link.setAttribute('href', `tel:${person.tel}`);
+
+    const label = link.getAttribute('data-random-call-label');
+    if (label) link.textContent = label.replace('{name}', person.name);
+
+    const trackUrl = link.getAttribute('data-random-call-track');
+    const onClick = () => {
+      const payload = { event: 'random_call', person: person.name, page: location.pathname };
+      (window.dataLayer = window.dataLayer || []).push(payload);
+      if (trackUrl && navigator.sendBeacon) {
+        navigator.sendBeacon(trackUrl, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+      }
+    };
+    link.addEventListener('click', onClick);
+    onPageLeave(() => link.removeEventListener('click', onClick));
   });
 }
 
