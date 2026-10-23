@@ -48,6 +48,7 @@ function initBeforeEnterFunctions(next) {
   if (has('[data-3d-tornado-init]')) init3DCardsTornado();
   if (has('[data-cascading-slider-wrap]')) initCascadingSlider();
   if (has('[data-drag-gallery]')) prepareDragGalleries();
+  if (has('[data-echo-sticker]')) initEchoSticker();
 }
 
 function initAfterEnterFunctions(next) {
@@ -3876,6 +3877,64 @@ function initLogoCardTestimonials() {
     slides.forEach((slide, index) => setStatus(slide, index === activeIndex ? "active" :
       "inactive"));
     startTimer();
+  });
+}
+
+// Echo "verified" sticker: scalloped olive disc, ring text and the Echo "e", drawn as SVG.
+// <div data-echo-sticker data-echo-sticker-text="Echo verified • Create for conversation •"
+//      data-echo-sticker-speed="34"></div>   (speed = seconds per turn; spinning CSS is in the site head)
+const ECHO_MARK_PATHS = [
+  'M4924.71,3116.46c-5.65-1.86-11.57,4.72-20.19,11.88,0,0-8.08,3.46-35.38,22.11-2.88,1.97-44.86,29.97-71.23,14.9-11.07-6.33-18.22-19.58-18.39-32.36-.26-20.13,16.87-32.55,19.17-34.17,6.29-4.41,7.73-2.84,39.26-11.46,20.07-5.49,19.12-6.02,26.63-7.27,19.69-3.27,28.81-.03,31.33-4.84,1.52-2.9-.53-6.5-14.43-25.56-12.47-17.1-18.54-24.81-26.07-33.57-8.77-10.21-14.53-16.03-23.28-20.25-6.38-3.08-11.22-3.8-15.6-3.26-5.55.68-9.59,3.29-12.1,5.12-20.33,14.8-38.97,44.92-38.97,44.92-13.3,21.49-19.95,32.24-26.68,48.52-7.27,17.59-12.45,30.11-13.73,47.4-1.04,13.98-3.23,43.27,12.8,58.43,21.11,19.97,62.78,4.99,112.9-13.04,44.96-16.16,40.35-25.92,70.21-41.89,2.5-1.34,9.3-4.93,10.57-11.42,1.09-5.6-2.07-12.65-6.81-14.21ZM4794.87,3046.15c5.26-16.36,8.42-25.68,17.44-29.51,7.13-3.03,14.04-.97,15.21-.6,2.13.67,7.77,2.8,18.34,19.97,8.51,13.82,14.63,23.76,10.74,29.9-.68,1.08-1.53,1.82-9.94,5.12-11.52,4.52-20.22,7.17-23.95,8.29-11.13,3.33-15.36,4.23-20.41,4.67-6.02.53-9.03.79-10.98-.65-6.79-5.03-1.01-23,3.55-37.18Z',
+  'M5022.87,3043.84c-17.04-40.88-35.13-31.89-117.94-113.01-71.15-69.7-82.52-100.55-115.23-98.97-30.16,1.46-55.85,29.4-94.9,71.85-5.67,6.17-19.78,21.88-40.67,51.52-20.31,28.82-47.77,67.79-67.78,115.23-18.66,44.22-52.97,125.56-23.05,207.42,6.29,17.22,21.33,58.35,61.01,78.63,24.67,12.61,47.56,11.38,75.92,9.49,49.24-3.28,83.89-18.91,153.19-50.16,48.78-22,72.27-36.89,84.05-44.74,24.5-16.32,41.43-27.59,55.58-43.38,40.63-45.34,54.79-123.96,29.83-183.88ZM4940.17,3204.67c-14.44,21.57-34.2,31.63-73.71,51.73-48.74,24.8-90.54,46.06-124.89,28.26-20.41-10.58-29.91-30.66-35.93-43.38-9.45-19.99-12.53-40.56-9.49-88.12,1.66-25.99,7.96-116.01,39.31-183.02,4.61-9.85,11.66-21.48,25.76-44.74,12.77-21.07,17.38-27.11,25.76-31.18,18.12-8.79,37.82-.53,39.03,0,5.53,2.41,14.46,7.62,40.38,52.44,11.65,20.15,10.99,21.07,21.04,37.76,8.99,14.94,14.3,22.13,29.34,44.22,19.78,29.06,29.66,43.59,31.53,47.24,18.54,36.18,17.66,90.26-8.13,128.79Z',
+];
+let echoStickerCount = 0;
+function initEchoSticker() {
+  const NS = 'http://www.w3.org/2000/svg';
+  const make = (tag, attrs) => {
+    const node = document.createElementNS(NS, tag);
+    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+    return node;
+  };
+
+  nextPage.querySelectorAll('[data-echo-sticker]').forEach((host) => {
+    if (host.querySelector('svg')) return;
+    const raw = host.getAttribute('data-echo-sticker-text') || 'Echo verified • Create for conversation •';
+    const speed = parseFloat(host.getAttribute('data-echo-sticker-speed')) || 34;
+    // Same space around every dot, also where the ring closes
+    const parts = raw.split('•').map((part) => part.trim()).filter(Boolean);
+    const ringText = (parts.join('  •  ') + '  •  ').toUpperCase();
+    const id = `echo-sticker-ring-${++echoStickerCount}`;
+
+    const svg = make('svg', { viewBox: '0 0 200 200', class: 'echo-sticker__svg', role: 'img', 'aria-label': parts.join(' · ') });
+    svg.style.setProperty('--echo-sticker-speed', `${speed}s`);
+    const ring = make('g', { class: 'echo-sticker__ring' });
+
+    // Scalloped edge: 18 soft bumps
+    let d = '';
+    for (let i = 0; i <= 360; i++) {
+      const t = (i / 360) * Math.PI * 2;
+      const r = 93 + 3 * Math.cos(t * 18);
+      d += `${i ? 'L' : 'M'}${(100 + r * Math.cos(t)).toFixed(2)} ${(100 + r * Math.sin(t)).toFixed(2)}`;
+    }
+    ring.append(make('path', { d: `${d}Z`, class: 'echo-sticker__disc' }));
+
+    const radius = 72;
+    ring.append(make('path', { id, d: `M 100 ${100 - radius} a ${radius} ${radius} 0 1 1 -0.01 0`, fill: 'none' }));
+    const text = make('text', { class: 'echo-sticker__text', 'font-size': 13, 'letter-spacing': '0.06em' });
+    text.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve');
+    const textPath = make('textPath', { href: `#${id}`, textLength: (2 * Math.PI * radius - 4).toFixed(1), lengthAdjust: 'spacing' });
+    textPath.textContent = ringText;
+    text.append(textPath);
+    ring.append(text);
+    svg.append(ring);
+
+    // The "e" stays still in the middle
+    const size = 66;
+    const mark = make('svg', { x: 100 - size / 2, y: 100 - size * 0.5515, width: size, height: size * 1.103, viewBox: '4541 2821 505 557', overflow: 'visible' });
+    ECHO_MARK_PATHS.forEach((path) => mark.append(make('path', { d: path, class: 'echo-sticker__mark' })));
+    svg.append(mark);
+
+    host.append(svg);
   });
 }
 
