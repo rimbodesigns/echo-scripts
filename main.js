@@ -47,6 +47,7 @@ function initBeforeEnterFunctions(next) {
   // if (has('[data-something]')) initSomething();
   if (has('[data-3d-tornado-init]')) init3DCardsTornado();
   if (has('[data-cascading-slider-wrap]')) initCascadingSlider();
+  if (has('[data-drag-gallery]')) prepareDragGalleries();
 }
 
 function initAfterEnterFunctions(next) {
@@ -3878,6 +3879,30 @@ function initLogoCardTestimonials() {
   });
 }
 
+// Runs before the enter animation: start loading gallery photos right away and
+// give loaded ones their real ratio, so nothing jumps while the page slides in.
+// Galleries still waiting for a photo stay hidden until initDragGallery fades them in.
+const DRAG_GALLERY_SIZES = '(min-width: 1245px) 820px, 66vw'; // widest slide = landscape, not full screen
+function prepareDragGalleries() {
+  nextPage.querySelectorAll('[data-drag-gallery]:not([data-drag-gallery-center])').forEach((gallery) => {
+    const track = gallery.querySelector('[data-drag-gallery-track]');
+    if (!track) return;
+    let waiting = false;
+    gallery.querySelectorAll('[data-drag-gallery-item]').forEach((item) => {
+      const img = item.querySelector('img');
+      if (!img) return;
+      img.sizes = DRAG_GALLERY_SIZES;
+      img.loading = 'eager';
+      if (img.complete && img.naturalWidth) {
+        item.style.aspectRatio = img.naturalWidth >= img.naturalHeight ? '1.5' : '0.75';
+      } else {
+        waiting = true;
+      }
+    });
+    if (waiting) gsap.set(track, { autoAlpha: 0 });
+  });
+}
+
 function initDragGallery() {
   nextPage.querySelectorAll('[data-drag-gallery]').forEach((gallery) => {
     const track = gallery.querySelector('[data-drag-gallery-track]');
@@ -4027,8 +4052,7 @@ function initDragGallery() {
     items.forEach((item) => {
       const img = item.querySelector('img');
       if (!img) return;
-      img.sizes =
-        '(min-width: 1245px) 820px, 66vw'; // widest slide = landscape, not full screen
+      img.sizes = DRAG_GALLERY_SIZES;
       img.loading = 'eager';
       if (!img.complete || !img.naturalWidth) {
         pending++;
@@ -4048,6 +4072,9 @@ function initDragGallery() {
     if (pending > 0) {
       gsap.set(track, { autoAlpha: 0 });
       revealTimer = gsap.delayedCall(2.5, reveal); // never keep the gallery hidden on a slow connection
+    } else if (gsap.getProperty(track, 'opacity') < 1) {
+      // Hidden by prepareDragGalleries, but everything loaded during the transition
+      reveal();
     }
 
     const onResize = debounceOnWidthChange(() => {
