@@ -80,6 +80,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-newsletter]')) initNewsletterField();
   if (has('[data-btn-hover]')) initDirectionalButtonHover();
   if (has('[data-compare]')) initCompareSwitch();
+  if (has('[data-hide-current]')) initHideCurrentLinks();
   if (has('[data-bouncy-tabs-init]')) initBouncyContentTabs();
   if (has('[data-reveal-group]')) initRevealGroups();
   if (has('[data-3d-tornado-init]')) playTornadoIntro();
@@ -4373,6 +4374,17 @@ function initRandomCall() {
         pick.removeEventListener('keydown', onPickKey);
       });
     });
+  });
+}
+
+// Links to the page you're on get .is-current-page inside [data-hide-current] (CSS hides them),
+// so the footer only offers the other pages
+function initHideCurrentLinks() {
+  const clean = (path) => path.replace(/\/$/, '') || '/';
+  const here = clean(location.pathname);
+  nextPage.querySelectorAll('[data-hide-current] a[href]').forEach((link) => {
+    const path = clean(new URL(link.getAttribute('href'), location.href).pathname);
+    link.classList.toggle('is-current-page', path === here);
   });
 }
 
