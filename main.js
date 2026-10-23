@@ -3701,7 +3701,8 @@ function initLogoCardTestimonials() {
         item,
         dot,
         fill: dot.querySelector("[data-logo-testimonials-dot-fill]"),
-        logo: item.querySelector("[data-logo-testimonials-logo]"),
+        // all logos of a slide (a quote can carry two brands)
+        logos: Array.from(item.querySelectorAll("[data-logo-testimonials-logo]")),
         splits: Array.from(item.querySelectorAll("[data-logo-testimonials-split]")).map((
             element) =>
           SplitText.create(element, {
@@ -3780,7 +3781,7 @@ function initLogoCardTestimonials() {
       transition = gsap.timeline({
         onComplete: () => {
           setStatus(outgoing, "inactive");
-          gsap.set([...outgoingLines, ...incomingLines, outgoing.logo, incoming.logo,
+          gsap.set([...outgoingLines, ...incomingLines, ...outgoing.logos, ...incoming.logos,
             outgoing.item, incoming.item
           ], {
             clearProps: "transform,opacity",
@@ -3827,12 +3828,12 @@ function initLogoCardTestimonials() {
             amount: 0.3,
           },
         }, 0.35)
-        .to(outgoing.logo, {
+        .to(outgoing.logos, {
           yPercent: -110,
           duration: 0.6,
           ease: "power4.inOut",
         }, 0)
-        .fromTo(incoming.logo, {
+        .fromTo(incoming.logos, {
           yPercent: 110,
         }, {
           yPercent: 0,
