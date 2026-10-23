@@ -3883,6 +3883,10 @@ function initDragGallery() {
     const track = gallery.querySelector('[data-drag-gallery-track]');
     const items = [...gallery.querySelectorAll('[data-drag-gallery-item]')];
     if (!track || !items.length) return;
+    if (gallery.hasAttribute('data-drag-gallery-center')) {
+      initCenterCarousel(gallery, track, items);
+      return;
+    }
 
     // Feel — tweak here
     const snapDuration = 0.8;
@@ -4062,6 +4066,113 @@ function initDragGallery() {
       if (nextBtn) nextBtn.removeEventListener('click', onNext);
       window.removeEventListener('resize', onResize);
     });
+  });
+}
+
+// Step cards: the current card always sits in the middle, the row loops endlessly
+// (copies before and after the real cards), click a card to bring it to the middle.
+// [data-drag-gallery-center] on the gallery; optional [data-drag-gallery-count] and prev/next next to it.
+function initCenterCarousel(gallery, track, items) {
+  const duration = 0.8;
+  const ease = 'expo.out';
+  const count = items.length;
+  const counter = gallery.parentElement.querySelector('[data-drag-gallery-count]');
+  const prevBtn = gallery.parentElement.querySelector('[data-drag-gallery-prev]');
+  const nextBtn = gallery.parentElement.querySelector('[data-drag-gallery-next]');
+  const pad = (n) => String(n).padStart(2, '0');
+
+  const makeClone = (item) => {
+    const clone = item.cloneNode(true);
+    clone.setAttribute('aria-hidden', 'true');
+    clone.setAttribute('data-drag-gallery-clone', '');
+    return clone;
+  };
+  const before = items.map(makeClone);
+  const after = items.map(makeClone);
+  before.forEach((clone) => track.insertBefore(clone, items[0]));
+  after.forEach((clone) => track.appendChild(clone));
+  const all = [...before, ...items, ...after];
+
+  let index = count; // first real card
+  const centerX = (i) => gallery.clientWidth / 2 - (all[i].offsetLeft + all[i].offsetWidth / 2);
+  const real = (i) => ((i % count) + count) % count;
+
+  function nearest(x) {
+    let best = index;
+    let distance = Infinity;
+    all.forEach((card, i) => {
+      const d = Math.abs(centerX(i) - x);
+      if (d < distance) { distance = d; best = i; }
+    });
+    return best;
+  }
+
+  function setActive(i) {
+    const r = real(i);
+    all.forEach((card, k) => card.classList.toggle('is-active', real(k) === r));
+    if (counter) counter.textContent = `${pad(r + 1)} / ${pad(count)}`;
+  }
+
+  // After moving into the copies, jump back to the same card in the real set (invisible)
+  function normalize() {
+    if (index < count || index >= count * 2) {
+      index = real(index) + count;
+      gsap.set(track, { x: centerX(index) });
+      draggable.update();
+    }
+  }
+
+  function goTo(i) {
+    index = i;
+    setActive(index);
+    gsap.killTweensOf(track);
+    gsap.to(track, {
+      x: centerX(index),
+      duration,
+      ease,
+      onUpdate: () => draggable.update(),
+      onComplete: normalize,
+    });
+  }
+
+  const draggable = Draggable.create(track, {
+    type: 'x',
+    trigger: gallery,
+    inertia: true,
+    cursor: 'grab',
+    activeCursor: 'grabbing',
+    snap: { x: (x) => centerX(nearest(x)) },
+    onDrag() { setActive(nearest(this.x)); },
+    onThrowUpdate() { setActive(nearest(this.x)); },
+    onThrowComplete() { index = nearest(this.x); setActive(index); normalize(); },
+    onClick(e) {
+      const card = e.target.closest('[data-drag-gallery-item]');
+      const i = all.indexOf(card);
+      if (i > -1 && i !== index) goTo(i);
+    },
+  })[0];
+
+  const onPrev = () => goTo(index - 1);
+  const onNext = () => goTo(index + 1);
+  if (prevBtn) prevBtn.addEventListener('click', onPrev);
+  if (nextBtn) nextBtn.addEventListener('click', onNext);
+
+  const place = () => { gsap.set(track, { x: centerX(index) }); draggable.update(); };
+  setActive(index);
+  place();
+  requestAnimationFrame(place);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
+
+  const onResize = debounceOnWidthChange(place, 150);
+  window.addEventListener('resize', onResize);
+
+  onPageLeave(() => {
+    draggable.kill();
+    gsap.killTweensOf(track);
+    if (prevBtn) prevBtn.removeEventListener('click', onPrev);
+    if (nextBtn) nextBtn.removeEventListener('click', onNext);
+    window.removeEventListener('resize', onResize);
+    [...before, ...after].forEach((clone) => clone.remove());
   });
 }
 
