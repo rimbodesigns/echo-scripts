@@ -3546,7 +3546,8 @@ function initStickyTitleScroll() {
   // Phones: no pinning. The CSS gives the section a normal height and shows only the first
   // line, which reveals letter by letter while it scrolls into view.
   const mm = gsap.matchMedia();
-  mm.add({ isPhone: "(max-width: 767px)" }, (context) => {
+  // Both conditions listed: matchMedia only runs the function while one of them matches
+  mm.add({ isPhone: "(max-width: 767px)", isLarger: "(min-width: 768px)" }, (context) => {
     const splits = [];
     wraps.forEach(wrap => {
       const headings = Array.from(wrap.querySelectorAll('[data-sticky-title="heading"]'));
