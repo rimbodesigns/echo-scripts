@@ -85,6 +85,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-reveal-group]')) initRevealGroups();
   if (has('[data-3d-tornado-init]')) playTornadoIntro();
   if (has('[data-scroll-indicator]')) initScrollIndicator();
+  initPageHeightWatcher();
 
   if (hasLenis) {
     lenis.resize();
@@ -421,6 +422,31 @@ function initLenis() {
     lenis.raf(time * 1000);
   });
   gsap.ticker.lagSmoothing(0);
+}
+
+// Late content (lazy images, embeds) makes the page taller after the scroll animations were
+// measured, so everything near the bottom (footer parallax, end bar) ran at the wrong spot.
+// Re-measure whenever the page height settles on a new value.
+function initPageHeightWatcher() {
+  if (!hasScrollTrigger || !window.ResizeObserver) return;
+  const page = nextPage === document ? document.body : nextPage;
+  let lastHeight = page.offsetHeight;
+  let timer;
+  const observer = new ResizeObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const height = page.offsetHeight;
+      if (Math.abs(height - lastHeight) < 2) return;
+      lastHeight = height;
+      if (hasLenis) lenis.resize();
+      ScrollTrigger.refresh();
+    }, 200);
+  });
+  observer.observe(page);
+  onPageLeave(() => {
+    observer.disconnect();
+    clearTimeout(timer);
+  });
 }
 
 function resetPage(container) {
