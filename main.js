@@ -72,6 +72,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-perspective-tiles-init]')) init3dPerspectiveTiles();
   if (has('[data-sticky-title="wrap"]')) initStickyTitleScroll();
   if (has('[data-footer-parallax]')) initFooterParallax();
+  if (has('[data-end-bar]')) initEndBar();
   if (has('[data-hero-wave]')) initHeroWave();
   if (has('[data-wavy-marquee-init]')) initWavyMarquee();
   if (has('[data-logo-testimonials-init]')) initLogoCardTestimonials();
@@ -3489,6 +3490,8 @@ function init3dPerspectiveTiles() {
 
 function initFooterParallax() {
   if (reducedMotion) return;
+  // Phones scroll natively, so a scroll-linked transform lags a frame behind and jitters
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
 
   nextPage.querySelectorAll('[data-footer-parallax]').forEach(el => {
     const inner = el.querySelector('[data-footer-parallax-inner]');
@@ -3520,22 +3523,22 @@ function initFooterParallax() {
     }
   });
 
-  // End bar: over its own height the inner slides from -100% to 0, so it stays put at the
-  // bottom of the screen while the footer lifts off it, as if it was lying underneath
+}
+
+// End bar: the inner is fixed to the bottom of the screen and the bar clips it (head CSS,
+// [data-end-bar-fixed]), so the footer lifts off a bar that was lying underneath. Pure CSS
+// scrolls smoothly on phones too; this only gives the bar the height of its inner.
+function initEndBar() {
   nextPage.querySelectorAll('[data-end-bar]').forEach(bar => {
     const inner = bar.querySelector('[data-end-bar-inner]');
     if (!inner) return;
-    gsap.fromTo(inner, { yPercent: -100 }, {
-      yPercent: 0,
-      ease: 'none',
-      scrollTrigger: {
-        trigger: bar,
-        start: 'top bottom',
-        end: 'bottom bottom',
-        scrub: true,
-        invalidateOnRefresh: true
-      }
-    });
+    const sync = () => { bar.style.height = inner.offsetHeight + 'px'; };
+    bar.setAttribute('data-end-bar-fixed', '');
+    sync();
+    if (!window.ResizeObserver) return;
+    const observer = new ResizeObserver(sync);
+    observer.observe(inner);
+    onPageLeave(() => observer.disconnect());
   });
 }
 
