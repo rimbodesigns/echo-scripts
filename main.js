@@ -224,6 +224,86 @@ function runPageEnterAnimation(next) {
     tl.call(resolve, null, "pageReady");
   });
 }
+
+// First load: the transition panel with the logo already covers the page from the first
+// paint (site head CSS, until html gets .is-loaded). It stays until the fonts and the
+// photos on the first screen are in, at least minTime and at most maxTime (seconds since
+// the page started loading), then leaves the same way as a page transition.
+function runPageLoader(next) {
+  // Feel — tweak here
+  const minTime = 1.1;
+  const maxTime = 4;
+
+  const html = document.documentElement;
+  const transitionWrap = document.querySelector("[data-transition-wrap]");
+  if (!transitionWrap) {
+    html.classList.add("is-loaded");
+    return Promise.resolve();
+  }
+  const transitionPanel = transitionWrap.querySelector("[data-transition-panel]");
+  const transitionPanelBottom = transitionWrap.querySelector("[data-transition-panel-bottom]");
+  const transitionLogo = transitionWrap.querySelector("[data-transition-logo]");
+  const transitionLogoPath = transitionWrap.querySelectorAll("path");
+  if (hasLenis) lenis?.stop(); // afterEnter starts it again
+
+  // Hero cards are still at scale 0 here, so they're picked up by attribute, not by position
+  const images = [...next.querySelectorAll("img")].filter(img => {
+    if (img.closest("[data-3d-tornado-item]")) return true;
+    const rect = img.getBoundingClientRect();
+    return rect.width > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+  });
+  const loaded = Promise.all([
+    document.fonts?.ready,
+    ...images.map(img => img.complete ? null : new Promise(resolve => {
+      img.addEventListener("load", resolve, { once: true });
+      img.addEventListener("error", resolve, { once: true });
+    })),
+  ]);
+  const secondsLeft = (until) => new Promise(resolve =>
+    setTimeout(resolve, Math.max(0, until - performance.now() / 1000) * 1000));
+
+  return Promise.race([loaded, secondsLeft(maxTime)])
+    .then(() => secondsLeft(minTime))
+    .then(() => {
+      // Take over from the head CSS in the same state, then leave
+      gsap.set(transitionPanel, { autoAlpha: 1, yPercent: -100 });
+      gsap.set(transitionPanelBottom, { scaleY: 1, height: "20vw" });
+      gsap.set(transitionLogo, { autoAlpha: 1 });
+      gsap.set(transitionLogoPath, { yPercent: 0 });
+      html.classList.add("is-loaded");
+
+      const tl = gsap.timeline();
+      if (reducedMotion) {
+        tl.set([transitionPanel, transitionLogo], { autoAlpha: 0 });
+        return tl;
+      }
+      tl.to(transitionLogoPath, {
+        yPercent: -130,
+        duration: 1.2,
+        ease: "expo.inOut",
+        stagger: {
+          amount: -0.06
+        }
+      }, 0);
+      tl.add("startEnter", 0.4);
+      tl.to(transitionPanel, {
+        yPercent: -200,
+        duration: 1,
+      }, "startEnter");
+      tl.to(transitionPanelBottom, {
+        scaleY: 0,
+        duration: 1,
+      }, "<");
+      tl.set([transitionPanel, transitionLogo], { autoAlpha: 0 }, ">");
+      tl.from(next, {
+        y: "25dvh",
+        duration: 1,
+      }, "startEnter");
+      tl.add("pageReady");
+      tl.set(next, { clearProps: "transform,willChange" }, "pageReady");
+      return tl;
+    });
+}
 // -----------------------------------------
 // BARBA HOOKS + INIT
 // -----------------------------------------
@@ -283,7 +363,8 @@ barba.init({
     // First load
     async once(data) {
       initOnceFunctions();
-      return runPageOnceAnimation(data.next.container);
+      await runPageOnceAnimation(data.next.container);
+      return runPageLoader(data.next.container);
     },
     // Current page leaves
     async leave(data) {
@@ -993,6 +1074,12 @@ function init3DCardsTornado() {
     const originalCards = gsap.utils.toArray('[data-3d-tornado-item]', list).map((card) => card
       .cloneNode(true));
     if (!originalCards.length) return;
+    // The hero fills the first screen: load its photos right away instead of lazily,
+    // so the page loader can wait for them and no empty (dark) cards show up
+    originalCards.forEach((card) => card.querySelectorAll('img').forEach((img) => {
+      img.loading = 'eager';
+      img.decoding = 'async';
+    }));
     let inputObserver;
     const state = {
       amount: 0,
@@ -1022,7 +1109,10 @@ function init3DCardsTornado() {
       const measureCard = originalCards[0].cloneNode(true);
       list.appendChild(measureCard);
       state.cardHeight = measureCard.offsetHeight;
-      state.cardGap = state.cardHeight * cardYSpacing;
+      // Tall (phone) screens: stretch the spiral so about one turn fills the screen, like on
+      // desktop, instead of stacking several turns of cards (busy, and many more cards to render)
+      state.cardGap = Math.max(state.cardHeight * cardYSpacing,
+        container.offsetHeight / (360 / rotationAngle));
       state.em = parseFloat(getComputedStyle(measureCard).fontSize);
       state.amount = getCardAmount();
       list.innerHTML = "";
