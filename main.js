@@ -75,6 +75,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-logo-testimonials-init]')) initLogoCardTestimonials();
   if (has('[data-drag-gallery]')) initDragGallery();
   if (has('[data-random-call]')) initRandomCall();
+  if (has('[data-newsletter]')) initNewsletterField();
   if (has('[data-bouncy-tabs-init]')) initBouncyContentTabs();
   if (has('[data-reveal-group]')) initRevealGroups();
   if (has('[data-3d-tornado-init]')) playTornadoIntro();
@@ -3983,23 +3984,45 @@ function initDragGallery() {
       }, 150);
     }, { passive: false });
 
-    // Load photos right away at the right size, re-measure as they arrive
+    // Load photos right away at the right size. Until every photo knows its size
+    // (portrait vs landscape) the track stays hidden, so slides don't jump wider
+    // after a page transition; then it fades in once.
+    let pending = 0;
+    let revealed = false;
+    let revealTimer = null;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      setRatios();
+      measure();
+      gsap.to(track, { autoAlpha: 1, duration: 0.4, ease: 'power2.out' });
+    };
+
     items.forEach((item) => {
       const img = item.querySelector('img');
       if (!img) return;
       img.sizes =
         '(min-width: 1245px) 820px, 66vw'; // widest slide = landscape, not full screen
       img.loading = 'eager';
-      if (!img.complete) {
-        img.addEventListener('load', () => {
+      if (!img.complete || !img.naturalWidth) {
+        pending++;
+        const done = () => {
+          pending--;
           setRatios();
           measure();
-        }, { once: true });
+          if (pending <= 0) reveal();
+        };
+        img.addEventListener('load', done, { once: true });
+        img.addEventListener('error', done, { once: true });
       }
     });
 
     setRatios();
     measure();
+    if (pending > 0) {
+      gsap.set(track, { autoAlpha: 0 });
+      revealTimer = gsap.delayedCall(2.5, reveal); // never keep the gallery hidden on a slow connection
+    }
 
     const onResize = debounceOnWidthChange(() => {
       measure();
@@ -4012,6 +4035,7 @@ function initDragGallery() {
     onPageLeave(() => {
       draggable.kill();
       clearTimeout(wheelTimer);
+      if (revealTimer) revealTimer.kill();
       if (prevBtn) prevBtn.removeEventListener('click', onPrev);
       if (nextBtn) nextBtn.removeEventListener('click', onNext);
       window.removeEventListener('resize', onResize);
@@ -4047,6 +4071,19 @@ function initRandomCall() {
     };
     link.addEventListener('click', onClick);
     onPageLeave(() => link.removeEventListener('click', onClick));
+  });
+}
+
+// Newsletter field: the round submit arrow appears once something is typed
+function initNewsletterField() {
+  nextPage.querySelectorAll('[data-newsletter]').forEach((wrap) => {
+    const input = wrap.querySelector('[data-newsletter-input]');
+    const submit = wrap.querySelector('[data-newsletter-submit]');
+    if (!input || !submit) return;
+    const update = () => submit.classList.toggle('is-visible', input.value.trim().length > 0);
+    input.addEventListener('input', update);
+    update();
+    onPageLeave(() => input.removeEventListener('input', update));
   });
 }
 
