@@ -1194,6 +1194,8 @@ function initCascadingSlider() {
     const viewport = wrapper.querySelector('[data-cascading-viewport]');
     const prevButton = wrapper.querySelector('[data-cascading-slider-prev]');
     const nextButton = wrapper.querySelector('[data-cascading-slider-next]');
+    // On a case page, leave out the slide that links to that same page
+    viewport.querySelectorAll('[data-cascading-slide].w--current').forEach(el => el.remove());
     const slides = Array.from(viewport.querySelectorAll('[data-cascading-slide]'));
     let totalSlides = slides.length;
     if (totalSlides === 0) return;
