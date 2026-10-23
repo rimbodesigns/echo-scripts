@@ -4798,6 +4798,7 @@ function initBouncyContentTabs() {
       const movingRight = index > activeIndex;
       activeIndex = index;
       syncButtonState();
+      scrollIntoNav(buttons[index]);
 
       if (reduceMotion.matches) {
         place(index);
@@ -4817,7 +4818,7 @@ function initBouncyContentTabs() {
       const maxOvershoot = Math.max(6, config.overshoot);
       let overshoot = gsap.utils.clamp(6, maxOvershoot, distance * 0.08) * hDir;
       if (hDir > 0) {
-        overshoot = Math.min(overshoot, nav.clientWidth - target.right);
+        overshoot = Math.min(overshoot, nav.scrollWidth - target.right);
       } else {
         overshoot = Math.max(overshoot, -target.left);
       }
@@ -4881,11 +4882,30 @@ function initBouncyContentTabs() {
       gsap.to(ghost, { autoAlpha: 0, duration: dur(0.2), ease: "power1.out" });
     }
 
+    // Phones: the tabs are one row you can swipe (CSS). Bring the chosen tab to the middle
+    // and mark the ends, so the edge fades only show where there's more to scroll to.
+    function scrollIntoNav(button) {
+      if (nav.scrollWidth <= nav.clientWidth + 1) return;
+      nav.scrollTo({
+        left: button.offsetLeft - (nav.clientWidth - button.offsetWidth) / 2,
+        behavior: reduceMotion.matches ? "auto" : "smooth",
+      });
+    }
+
+    function updateScrollEnds() {
+      const scrollable = nav.scrollWidth > nav.clientWidth + 1;
+      nav.toggleAttribute("data-scroll-start", !scrollable || nav.scrollLeft <= 1);
+      nav.toggleAttribute("data-scroll-end",
+        !scrollable || nav.scrollLeft + nav.clientWidth >= nav.scrollWidth - 1);
+    }
+    nav.addEventListener("scroll", updateScrollEnds, { passive: true });
+
     function refreshLayout() {
       const rows = new Set(buttons.map((b) => b.offsetTop));
       nav.toggleAttribute("data-wrapped", rows.size > 1);
       place(activeIndex);
       setPanelsHeight();
+      updateScrollEnds();
     }
 
     buttons.forEach((button, index) => {
