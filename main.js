@@ -76,6 +76,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-drag-gallery]')) initDragGallery();
   if (has('[data-random-call]')) initRandomCall();
   if (has('[data-newsletter]')) initNewsletterField();
+  if (has('[data-btn-hover]')) initDirectionalButtonHover();
   if (has('[data-bouncy-tabs-init]')) initBouncyContentTabs();
   if (has('[data-reveal-group]')) initRevealGroups();
   if (has('[data-3d-tornado-init]')) playTornadoIntro();
@@ -4049,6 +4050,11 @@ function initDragGallery() {
 // data-random-call-label="Liever bellen? Bel {name}"   (optional, sets the link text)
 // data-random-call-track="https://hook.example/…"      (optional, gets {person, page} on click)
 function initRandomCall() {
+  // Separate buttons per person: show them in random order so neither always comes first
+  nextPage.querySelectorAll('[data-random-call-shuffle]').forEach((group) => {
+    if (Math.random() < 0.5) Array.from(group.children).reverse().forEach((child) => group.appendChild(child));
+  });
+
   nextPage.querySelectorAll('[data-random-call]').forEach((link) => {
     const people = link.getAttribute('data-random-call').split(',').map((entry) => {
       const [name, tel] = entry.split(':').map((s) => s.trim());
@@ -4059,6 +4065,7 @@ function initRandomCall() {
     // Optional toggle next to the button: [data-random-call-pick="Name"] inside [data-random-call-wrap]
     const wrap = link.closest('[data-random-call-wrap]');
     const picks = wrap ? Array.from(wrap.querySelectorAll('[data-random-call-pick]')) : [];
+    const thumb = wrap ? wrap.querySelector('[data-random-call-thumb]') : null;
     const textEl = link.querySelector('[data-random-call-text]') || link;
     const label = link.getAttribute('data-random-call-label');
     let person;
@@ -4073,8 +4080,29 @@ function initRandomCall() {
         pick.classList.toggle('is-active', active);
         pick.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
+      moveThumb();
     };
+
+    // Sliding background behind the active name
+    function moveThumb() {
+      if (!thumb) return;
+      const active = picks.find((pick) => pick.classList.contains('is-active'));
+      if (!active) return;
+      thumb.style.width = `${active.offsetWidth}px`;
+      thumb.style.transform = `translateX(${active.offsetLeft}px)`;
+    }
     select(people[Math.floor(Math.random() * people.length)]);
+    let thumbObserver = null;
+    if (thumb) {
+      // First position without animating, then let it slide
+      thumb.style.transition = 'none';
+      moveThumb();
+      requestAnimationFrame(() => { thumb.style.transition = ''; });
+      if (window.ResizeObserver) {
+        thumbObserver = new ResizeObserver(moveThumb);
+        picks.forEach((pick) => thumbObserver.observe(pick));
+      }
+    }
 
     const onPick = (e) => {
       const next = people.find((p) => p.name === e.currentTarget.getAttribute('data-random-call-pick').trim());
@@ -4101,12 +4129,57 @@ function initRandomCall() {
     link.addEventListener('click', onClick);
     onPageLeave(() => {
       link.removeEventListener('click', onClick);
+      if (thumbObserver) thumbObserver.disconnect();
       picks.forEach((pick) => {
         pick.removeEventListener('click', onPick);
         pick.removeEventListener('keydown', onPickKey);
       });
     });
   });
+}
+
+// Osmo Directional Button Hover: the fill circle grows from where the cursor enters and leaves
+function initDirectionalButtonHover() {
+  nextPage.querySelectorAll('[data-btn-hover]').forEach((button) => {
+    button.addEventListener('mouseenter', handleHover);
+    button.addEventListener('mouseleave', handleHover);
+    onPageLeave(() => {
+      button.removeEventListener('mouseenter', handleHover);
+      button.removeEventListener('mouseleave', handleHover);
+    });
+  });
+
+  function handleHover(event) {
+    const button = event.currentTarget;
+    const buttonRect = button.getBoundingClientRect();
+
+    // Get the button's dimensions and center
+    const buttonWidth = buttonRect.width;
+    const buttonHeight = buttonRect.height;
+    const buttonCenterX = buttonRect.left + buttonWidth / 2;
+
+    // Calculate mouse position
+    const mouseX = event.clientX;
+    const mouseY = event.clientY;
+
+    // Offset from the top-left corner in percentage
+    const offsetXFromLeft = ((mouseX - buttonRect.left) / buttonWidth) * 100;
+    const offsetYFromTop = ((mouseY - buttonRect.top) / buttonHeight) * 100;
+
+    // Offset from the center in percentage
+    let offsetXFromCenter = ((mouseX - buttonCenterX) / (buttonWidth / 2)) * 50;
+
+    // Convert to absolute values
+    offsetXFromCenter = Math.abs(offsetXFromCenter);
+
+    // Update position and size of .btn__circle
+    const circle = button.querySelector('.btn__circle');
+    if (circle) {
+      circle.style.left = `${offsetXFromLeft.toFixed(1)}%`;
+      circle.style.top = `${offsetYFromTop.toFixed(1)}%`;
+      circle.style.width = `${115 + offsetXFromCenter.toFixed(1) * 2}%`;
+    }
+  }
 }
 
 // Newsletter field: the round submit arrow appears once something is typed
