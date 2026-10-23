@@ -4052,26 +4052,60 @@ function initRandomCall() {
   nextPage.querySelectorAll('[data-random-call]').forEach((link) => {
     const people = link.getAttribute('data-random-call').split(',').map((entry) => {
       const [name, tel] = entry.split(':').map((s) => s.trim());
-      return { name, tel: tel.replace(/[^\d+]/g, '') };
+      return { name, tel: (tel || '').replace(/[^\d+]/g, '') };
     }).filter((p) => p.name && p.tel);
     if (!people.length) return;
 
-    const person = people[Math.floor(Math.random() * people.length)];
-    link.setAttribute('href', `tel:${person.tel}`);
-
+    // Optional toggle next to the button: [data-random-call-pick="Name"] inside [data-random-call-wrap]
+    const wrap = link.closest('[data-random-call-wrap]');
+    const picks = wrap ? Array.from(wrap.querySelectorAll('[data-random-call-pick]')) : [];
+    const textEl = link.querySelector('[data-random-call-text]') || link;
     const label = link.getAttribute('data-random-call-label');
-    if (label) link.textContent = label.replace('{name}', person.name);
+    let person;
+    let switched = false;
+
+    const select = (next) => {
+      person = next;
+      link.setAttribute('href', `tel:${person.tel}`);
+      if (label) textEl.textContent = label.replace('{name}', person.name);
+      picks.forEach((pick) => {
+        const active = pick.getAttribute('data-random-call-pick').trim() === person.name;
+        pick.classList.toggle('is-active', active);
+        pick.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    };
+    select(people[Math.floor(Math.random() * people.length)]);
+
+    const onPick = (e) => {
+      const next = people.find((p) => p.name === e.currentTarget.getAttribute('data-random-call-pick').trim());
+      if (!next || next === person) return;
+      switched = true;
+      select(next);
+    };
+    const onPickKey = (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(e); }
+    };
+    picks.forEach((pick) => {
+      pick.addEventListener('click', onPick);
+      pick.addEventListener('keydown', onPickKey);
+    });
 
     const trackUrl = link.getAttribute('data-random-call-track');
     const onClick = () => {
-      const payload = { event: 'random_call', person: person.name, page: location.pathname };
+      const payload = { event: 'random_call', person: person.name, switched, page: location.pathname };
       (window.dataLayer = window.dataLayer || []).push(payload);
       if (trackUrl && navigator.sendBeacon) {
         navigator.sendBeacon(trackUrl, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
       }
     };
     link.addEventListener('click', onClick);
-    onPageLeave(() => link.removeEventListener('click', onClick));
+    onPageLeave(() => {
+      link.removeEventListener('click', onClick);
+      picks.forEach((pick) => {
+        pick.removeEventListener('click', onPick);
+        pick.removeEventListener('keydown', onPickKey);
+      });
+    });
   });
 }
 
