@@ -3920,7 +3920,24 @@ function initDragGallery() {
     // Unique snap positions, from first (0) to last (minX)
     const stops = () => [...new Set(snapPoints)].sort((a, b) => b - a);
 
+    // The card closest to the start is the "current" one: gets .is-active, and an optional
+    // [data-drag-gallery-count] next to the gallery shows "02 / 06"
+    const counter = gallery.parentElement.querySelector('[data-drag-gallery-count]');
+    const pad = (n) => String(n).padStart(2, '0');
+    function updateActive() {
+      const x = gsap.getProperty(track, 'x');
+      let index = 0;
+      let best = Infinity;
+      items.forEach((item, i) => {
+        const distance = Math.abs(snapPoints[i] - x);
+        if (distance < best - 0.5) { best = distance; index = i; }
+      });
+      items.forEach((item, i) => item.classList.toggle('is-active', i === index));
+      if (counter) counter.textContent = `${pad(index + 1)} / ${pad(items.length)}`;
+    }
+
     function updateArrows() {
+      updateActive();
       if (!prevBtn && !nextBtn) return;
       const x = gsap.getProperty(track, 'x');
       const setState = (btn, disabled) => {
@@ -3943,7 +3960,7 @@ function initDragGallery() {
         x: target,
         duration: snapDuration,
         ease: snapEase,
-        onUpdate: () => draggable.update(),
+        onUpdate: () => { draggable.update(); updateActive(); },
         onComplete: updateArrows,
       });
     }
@@ -3959,6 +3976,8 @@ function initDragGallery() {
       cursor: 'grab',
       activeCursor: 'grabbing',
       snap: { x: closestSnap },
+      onDrag: updateActive,
+      onThrowUpdate: updateActive,
       onDragEnd: updateArrows,
       onThrowComplete: updateArrows,
     })[0];
