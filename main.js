@@ -1095,6 +1095,10 @@ function init3DCardsTornado() {
 
   // Blur isn't GPU-composited and is written every frame — too heavy for phones
   const backBlur = canHover ? 0.5 : 0;
+  // Phones instead let the back cards fade into the page and darken less, so they read
+  // soft like the blur on desktop instead of as black slabs (opacity is cheap to animate)
+  const backFade = canHover ? 0 : 0.55;
+  const backDark = canHover ? backDarkness : 0.3;
 
   containers.forEach((container) => {
     const list = container.querySelector('[data-3d-tornado-list]');
@@ -1181,7 +1185,7 @@ function init3DCardsTornado() {
         const intro = introScales ? (introScales[i]?.v ?? 0) : 1;
         const scale = baseScale * getEdgeScale(y) * intro;
         const backAmount = gsap.utils.clamp(0, 1, (1 - Math.cos(angleRad)) * 0.5);
-        const brightness = 1 - backAmount * backDarkness;
+        const brightness = 1 - backAmount * backDark;
         const blur = backAmount * backBlur;
         gsap.set(card, {
           xPercent: -50,
@@ -1192,7 +1196,7 @@ function init3DCardsTornado() {
           rotateY: angleDeg,
           scale,
           filter: `brightness(${brightness}) blur(${blur}em)`,
-          autoAlpha: 1,
+          autoAlpha: 1 - backAmount * backFade,
           zIndex: Math.round(center * 1000)
         });
       });
