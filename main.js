@@ -3039,7 +3039,7 @@ function initCtaCard() {
   // Feel — tweak here
   const arrowDuration = 1.1;
   const arrowEase = "power3.inOut";
-  const boxHoverColor = "#F6642F";
+  const boxHoverColor = "#5F6B4F";
   const imageDuration = 0.8;
   const imageEase = "power2.out";
   const imageScale = 1.05;
