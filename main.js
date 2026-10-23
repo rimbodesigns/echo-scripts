@@ -4140,7 +4140,7 @@ function initCenterCarousel(gallery, track, items) {
     const r = real(i);
     all.forEach((card, k) => {
       card.classList.toggle('is-active', real(k) === r);
-      card.setAttribute('data-step-distance', String(Math.min(3, Math.abs(k - i))));
+      card.setAttribute('data-step-distance', String(Math.max(-3, Math.min(3, k - i))));
     });
     if (counter) counter.textContent = `${pad(r + 1)} / ${pad(count)}`;
   }
@@ -4154,7 +4154,19 @@ function initCenterCarousel(gallery, track, items) {
     }
   }
 
+  // Going back from step 1 isn't possible: a short bounce says "this is the start"
+  function bounce() {
+    gsap.killTweensOf(track);
+    gsap.fromTo(track, { x: centerX(index) + 48 }, {
+      x: centerX(index),
+      duration: 0.7,
+      ease: 'elastic.out(1, 0.45)',
+      onUpdate: () => draggable.update(),
+    });
+  }
+
   function goTo(i) {
+    if (i < count) { bounce(); return; }
     index = i;
     setActive(index);
     gsap.killTweensOf(track);
@@ -4173,10 +4185,12 @@ function initCenterCarousel(gallery, track, items) {
     inertia: true,
     cursor: 'grab',
     activeCursor: 'grabbing',
-    snap: { x: (x) => centerX(nearest(x)) },
-    onDrag() { setActive(nearest(this.x)); },
-    onThrowUpdate() { setActive(nearest(this.x)); },
-    onThrowComplete() { index = nearest(this.x); setActive(index); normalize(); },
+    edgeResistance: 0.8,
+    bounds: { minX: -Infinity, maxX: 0 },
+    snap: { x: (x) => centerX(Math.max(count, nearest(x))) },
+    onDrag() { setActive(Math.max(count, nearest(this.x))); },
+    onThrowUpdate() { setActive(Math.max(count, nearest(this.x))); },
+    onThrowComplete() { index = Math.max(count, nearest(this.x)); setActive(index); normalize(); },
     onClick(e) {
       const card = e.target instanceof Element ? e.target.closest('[data-drag-gallery-item]') : null;
       const i = all.indexOf(card);
@@ -4189,7 +4203,9 @@ function initCenterCarousel(gallery, track, items) {
   if (prevBtn) prevBtn.addEventListener('click', onPrev);
   if (nextBtn) nextBtn.addEventListener('click', onNext);
 
-  const place = () => { gsap.set(track, { x: centerX(index) }); draggable.update(); };
+  // Bounds: step 1 of the real set is as far back as you can go; forward is open (it loops)
+  const applyBounds = () => draggable.applyBounds({ minX: centerX(all.length - 1), maxX: centerX(count) });
+  const place = () => { applyBounds(); gsap.set(track, { x: centerX(index) }); draggable.update(); };
   setActive(index);
   place();
   requestAnimationFrame(place);
