@@ -265,11 +265,13 @@ function runPageLoader(next) {
   return Promise.race([loaded, secondsLeft(maxTime)])
     .then(() => secondsLeft(minTime))
     .then(() => {
-      // Take over from the head CSS in the same state, then leave
-      gsap.set(transitionPanel, { autoAlpha: 1, yPercent: -100 });
+      // Take over from the head CSS in the same state, then leave. y: 0 because GSAP reads
+      // the CSS translate as a px offset, which would stack on yPercent (here and in every
+      // later page transition).
+      gsap.set(transitionPanel, { autoAlpha: 1, y: 0, yPercent: -100 });
       gsap.set(transitionPanelBottom, { scaleY: 1, height: "20vw" });
       gsap.set(transitionLogo, { autoAlpha: 1 });
-      gsap.set(transitionLogoPath, { yPercent: 0 });
+      gsap.set(transitionLogoPath, { y: 0, yPercent: 0 });
       html.classList.add("is-loaded");
 
       const tl = gsap.timeline();
