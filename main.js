@@ -1102,7 +1102,10 @@ function init3DCardsTornado() {
   const maxSpeed = 0.2; // maximum speed
   const edgeScale = 0.5; // edge scale distance
   const edgeEase = gsap.parseEase("power2.inOut"); // easing for edge scaling
-  const minScale = 1; // smallest scale for distant cards
+  // Depth: front-and-middle is the biggest card. Both can be overridden per tornado from the
+  // Designer with data-tornado-back-scale / data-tornado-edge-scale (1 = off)
+  const defaultBackScale = 0.72; // size of a card at the back of the spiral (front = 1)
+  const defaultEdgeScale = 0.85; // size of a card at the top/bottom end of the spiral (middle = 1)
   const backDarkness = 0.75; // darkening applied to cards in back
   const introDuration = 1.6; // page-load intro: each card grows from 0 to full size
   const introStagger = 0.035; // delay per card, counted outward from the center card
@@ -1132,12 +1135,19 @@ function init3DCardsTornado() {
       img.decoding = 'async';
     }));
     let inputObserver;
+    const readScale = (value, fallback) => {
+      const n = parseFloat(value);
+      return Number.isFinite(n) ? gsap.utils.clamp(0.2, 1, n) : fallback;
+    };
+    const backScale = readScale(container.dataset.tornadoBackScale, defaultBackScale);
+    const minScale = readScale(container.dataset.tornadoEdgeScale, defaultEdgeScale);
     const state = {
       amount: 0,
       progress: 0,
       velocity: autoSpeed,
       direction: 1,
       cardHeight: 0,
+      halfHeight: 1,
       cardGap: 0,
       em: 16,
       isActive: false,
@@ -1160,6 +1170,7 @@ function init3DCardsTornado() {
       const measureCard = originalCards[0].cloneNode(true);
       list.appendChild(measureCard);
       state.cardHeight = measureCard.offsetHeight;
+      state.halfHeight = Math.max(1, container.offsetHeight * 0.5);
       // Tall (phone) screens: stretch the spiral so about one turn fills the screen, like on
       // desktop, instead of stacking several turns of cards (busy, and many more cards to render)
       state.cardGap = Math.max(state.cardHeight * cardYSpacing,
@@ -1200,10 +1211,13 @@ function init3DCardsTornado() {
         const angleRad = angleDeg * Math.PI / 180;
         const center = 1 - Math.min(Math.abs(index) / (state.amount * 0.5), 1);
         const y = index * state.cardGap;
-        const baseScale = minScale + center * (1 - minScale);
+        // Middle of the screen = full size, shrinking toward the top/bottom edge
+        const nearMiddle = 1 - Math.min(Math.abs(y) / state.halfHeight, 1);
+        const baseScale = minScale + nearMiddle * (1 - minScale);
         const intro = introScales ? (introScales[i]?.v ?? 0) : 1;
-        const scale = baseScale * getEdgeScale(y) * intro;
         const backAmount = gsap.utils.clamp(0, 1, (1 - Math.cos(angleRad)) * 0.5);
+        const depthScale = 1 - backAmount * (1 - backScale);
+        const scale = baseScale * depthScale * getEdgeScale(y) * intro;
         const brightness = 1 - backAmount * backDark;
         const blur = backAmount * backBlur;
         gsap.set(card, {
