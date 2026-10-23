@@ -1856,8 +1856,21 @@ function initCursorMarqueeEffect() {
   const hoverOutDelay = 0.4;
   const followDuration = 0.4;
   const speedMultiplier = 5;
-  const cursor = document.querySelector('[data-cursor-marquee-status]');
-  if (!cursor) return;
+  let cursor = document.querySelector('[data-cursor-marquee-status]');
+  // The cursor lives outside the page container and this runs once, so landing on a page
+  // without it in Webflow (Ons Verhaal, Contact) left the effect off for the whole visit
+  if (!cursor) {
+    cursor = document.createElement('div');
+    cursor.className = 'cursor-marquee';
+    cursor.setAttribute('data-cursor-marquee-status', '');
+    cursor.innerHTML = '<div class="cursor-marquee__card">'
+      + '<span data-cursor-marquee-text-target class="cursor-marquee__text-span"></span>'
+      + '<span data-cursor-marquee-text-target class="cursor-marquee__text-span is--duplicate"></span>'
+      + '</div>';
+    const transitionWrap = document.querySelector('[data-transition-wrap]');
+    if (transitionWrap) transitionWrap.after(cursor);
+    else document.body.prepend(cursor);
+  }
   const targets = cursor.querySelectorAll('[data-cursor-marquee-text-target]');
   const xTo = gsap.quickTo(cursor, 'x', { duration: followDuration, ease: 'power3' });
   const yTo = gsap.quickTo(cursor, 'y', { duration: followDuration, ease: 'power3' });
@@ -4292,68 +4305,57 @@ function initDragGallery() {
   });
 }
 
-// Step cards: the current card always sits in the middle, the row loops endlessly
-// (copies before and after the real cards), click a card to bring it to the middle.
+// Step cards: the current card always sits in the middle and you can go from step 1 to the
+// last step; past either end the row bounces back. A faded copy of the last step sits before
+// step 1 (with extra space) as a hint that the process starts over; it can't be clicked.
 // [data-drag-gallery-center] on the gallery; optional [data-drag-gallery-count] and prev/next next to it.
 function initCenterCarousel(gallery, track, items) {
   const duration = 0.8;
   const ease = 'expo.out';
+  const bounceDistance = 48;
   const count = items.length;
   const counter = gallery.parentElement.querySelector('[data-drag-gallery-count]');
   const prevBtn = gallery.parentElement.querySelector('[data-drag-gallery-prev]');
   const nextBtn = gallery.parentElement.querySelector('[data-drag-gallery-next]');
   const pad = (n) => String(n).padStart(2, '0');
 
-  const makeClone = (item) => {
-    const clone = item.cloneNode(true);
-    clone.setAttribute('aria-hidden', 'true');
-    clone.setAttribute('data-drag-gallery-clone', '');
-    return clone;
-  };
-  const before = items.map(makeClone);
-  const after = items.map(makeClone);
-  before.forEach((clone) => track.insertBefore(clone, items[0]));
-  after.forEach((clone) => track.appendChild(clone));
-  const all = [...before, ...items, ...after];
-  // First card of every set gets extra space in front of it: the visible "restart" between 6 and 1
-  [before[0], items[0], after[0]].forEach((card) => card.classList.add('is-loop-start'));
+  const ghost = items[count - 1].cloneNode(true);
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.setAttribute('data-drag-gallery-clone', '');
+  ghost.classList.remove('is-active');
+  ghost.style.pointerEvents = 'none';
+  track.insertBefore(ghost, items[0]);
+  items[0].classList.add('is-loop-start');
+  const all = [ghost, ...items];
+  const first = 1;
+  const last = count;
 
-  let index = count; // first real card
+  let index = first;
   const centerX = (i) => gallery.clientWidth / 2 - (all[i].offsetLeft + all[i].offsetWidth / 2);
-  const real = (i) => ((i % count) + count) % count;
+  const clampStep = (i) => gsap.utils.clamp(first, last, i);
 
   function nearest(x) {
     let best = index;
     let distance = Infinity;
-    all.forEach((card, i) => {
+    for (let i = first; i <= last; i++) {
       const d = Math.abs(centerX(i) - x);
       if (d < distance) { distance = d; best = i; }
-    });
+    }
     return best;
   }
 
   function setActive(i) {
-    const r = real(i);
     all.forEach((card, k) => {
-      card.classList.toggle('is-active', real(k) === r);
+      card.classList.toggle('is-active', k === i);
       card.setAttribute('data-step-distance', String(Math.max(-3, Math.min(3, k - i))));
     });
-    if (counter) counter.textContent = `${pad(r + 1)} / ${pad(count)}`;
+    if (counter) counter.textContent = `${pad(i)} / ${pad(count)}`;
   }
 
-  // After moving into the copies, jump back to the same card in the real set (invisible)
-  function normalize() {
-    if (index < count || index >= count * 2) {
-      index = real(index) + count;
-      gsap.set(track, { x: centerX(index) });
-      draggable.update();
-    }
-  }
-
-  // Going back from step 1 isn't possible: a short bounce says "this is the start"
-  function bounce() {
+  // Past step 1 or the last step: a short bounce says "this is the end"
+  function bounce(direction) {
     gsap.killTweensOf(track);
-    gsap.fromTo(track, { x: centerX(index) + 48 }, {
+    gsap.fromTo(track, { x: centerX(index) + direction * bounceDistance }, {
       x: centerX(index),
       duration: 0.7,
       ease: 'elastic.out(1, 0.45)',
@@ -4362,7 +4364,8 @@ function initCenterCarousel(gallery, track, items) {
   }
 
   function goTo(i) {
-    if (i < count) { bounce(); return; }
+    if (i < first) { bounce(1); return; }
+    if (i > last) { bounce(-1); return; }
     index = i;
     setActive(index);
     gsap.killTweensOf(track);
@@ -4371,7 +4374,6 @@ function initCenterCarousel(gallery, track, items) {
       duration,
       ease,
       onUpdate: () => draggable.update(),
-      onComplete: normalize,
     });
   }
 
@@ -4382,15 +4384,14 @@ function initCenterCarousel(gallery, track, items) {
     cursor: 'grab',
     activeCursor: 'grabbing',
     edgeResistance: 0.8,
-    bounds: { minX: -Infinity, maxX: 0 },
-    snap: { x: (x) => centerX(Math.max(count, nearest(x))) },
-    onDrag() { setActive(Math.max(count, nearest(this.x))); },
-    onThrowUpdate() { setActive(Math.max(count, nearest(this.x))); },
-    onThrowComplete() { index = Math.max(count, nearest(this.x)); setActive(index); normalize(); },
+    snap: { x: (x) => centerX(clampStep(nearest(x))) },
+    onDrag() { setActive(nearest(this.x)); },
+    onThrowUpdate() { setActive(nearest(this.x)); },
+    onThrowComplete() { index = nearest(this.x); setActive(index); },
     onClick(e) {
       const card = e.target instanceof Element ? e.target.closest('[data-drag-gallery-item]') : null;
       const i = all.indexOf(card);
-      if (i > -1 && i !== index) goTo(i);
+      if (i >= first && i !== index) goTo(i);
     },
   })[0];
 
@@ -4399,8 +4400,8 @@ function initCenterCarousel(gallery, track, items) {
   if (prevBtn) prevBtn.addEventListener('click', onPrev);
   if (nextBtn) nextBtn.addEventListener('click', onNext);
 
-  // Bounds: step 1 of the real set is as far back as you can go; forward is open (it loops)
-  const applyBounds = () => draggable.applyBounds({ minX: centerX(all.length - 1), maxX: centerX(count) });
+  // Bounds: from step 1 (maxX) to the last step (minX); edgeResistance gives the rubber band
+  const applyBounds = () => draggable.applyBounds({ minX: centerX(last), maxX: centerX(first) });
   const place = () => { applyBounds(); gsap.set(track, { x: centerX(index) }); draggable.update(); };
   setActive(index);
   place();
@@ -4416,7 +4417,7 @@ function initCenterCarousel(gallery, track, items) {
     if (prevBtn) prevBtn.removeEventListener('click', onPrev);
     if (nextBtn) nextBtn.removeEventListener('click', onNext);
     window.removeEventListener('resize', onResize);
-    [...before, ...after].forEach((clone) => clone.remove());
+    ghost.remove();
   });
 }
 
