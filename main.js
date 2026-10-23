@@ -77,6 +77,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-random-call]')) initRandomCall();
   if (has('[data-newsletter]')) initNewsletterField();
   if (has('[data-btn-hover]')) initDirectionalButtonHover();
+  if (has('[data-compare]')) initCompareSwitch();
   if (has('[data-bouncy-tabs-init]')) initBouncyContentTabs();
   if (has('[data-reveal-group]')) initRevealGroups();
   if (has('[data-3d-tornado-init]')) playTornadoIntro();
@@ -4136,6 +4137,34 @@ function initRandomCall() {
       });
     });
   });
+}
+
+// Temporary: show one design version at a time while comparing ([data-compare="a|b|c"])
+function initCompareSwitch() {
+  const blocks = Array.from(nextPage.querySelectorAll('[data-compare]'));
+  if (blocks.length < 2) return;
+  const bar = document.createElement('div');
+  bar.style.cssText = 'display:flex;gap:.25rem;margin-top:1.5rem;font-size:.8rem;';
+  const show = (key) => {
+    blocks.forEach((block) => { block.hidden = block.getAttribute('data-compare') !== key; });
+    bar.querySelectorAll('button').forEach((btn) => {
+      const active = btn.dataset.key === key;
+      btn.style.background = active ? '#7d8a69' : 'transparent';
+      btn.style.color = active ? '#f5f0ea' : '#7d8a69';
+    });
+  };
+  blocks.forEach((block) => {
+    const key = block.getAttribute('data-compare');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.key = key;
+    btn.textContent = `Versie ${key.toUpperCase()}`;
+    btn.style.cssText = 'padding:.35rem .75rem;border:1px solid #7d8a69;border-radius:100em;cursor:pointer;font:inherit;';
+    btn.addEventListener('click', () => show(key));
+    bar.appendChild(btn);
+  });
+  blocks[0].parentElement.insertBefore(bar, blocks[0]);
+  show(blocks[0].getAttribute('data-compare'));
 }
 
 // Osmo Directional Button Hover: the fill circle grows from where the cursor enters and leaves
