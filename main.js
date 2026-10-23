@@ -3543,10 +3543,51 @@ function initStickyTitleScroll() {
   const wraps = nextPage.querySelectorAll('[data-sticky-title="wrap"]');
   if (!wraps.length) return;
 
-  wraps.forEach(wrap => {
-    const headings = Array.from(wrap.querySelectorAll('[data-sticky-title="heading"]'));
-    if (!headings.length) return;
+  // Phones: no pinning. The CSS gives the section a normal height and shows only the first
+  // line, which reveals letter by letter while it scrolls into view.
+  const mm = gsap.matchMedia();
+  mm.add({ isPhone: "(max-width: 767px)" }, (context) => {
+    const splits = [];
+    wraps.forEach(wrap => {
+      const headings = Array.from(wrap.querySelectorAll('[data-sticky-title="heading"]'));
+      if (!headings.length) return;
+      if (context.conditions.isPhone) splits.push(revealFirstLine(headings[0]));
+      else splits.push(...buildPinnedSequence(wrap, headings));
+    });
+    return () => splits.forEach(split => split.revert());
+  });
+  onPageLeave(() => mm.revert());
 
+  function splitHeading(heading) {
+    // Save original heading content for screen readers
+    heading.setAttribute("aria-label", heading.textContent);
+    const split = new SplitText(heading, { type: "words,chars" });
+    // Hide all the separate words from screenreader
+    split.words.forEach(word => word.setAttribute("aria-hidden", "true"));
+    // Reset visibility on the 'stacked' headings
+    gsap.set(heading, { visibility: "visible" });
+    return split;
+  }
+
+  function revealFirstLine(heading) {
+    const split = splitHeading(heading);
+    gsap.from(split.chars, {
+      autoAlpha: 0,
+      stagger: { amount: 0.7, from: "start" },
+      duration: 0.7,
+      ease: "none",
+      scrollTrigger: {
+        trigger: heading,
+        start: "top 85%",
+        end: "bottom 55%",
+        scrub: true,
+      },
+    });
+    return split;
+  }
+
+  function buildPinnedSequence(wrap, headings) {
+    const splits = [];
     const masterTl = gsap.timeline({
       scrollTrigger: {
         trigger: wrap,
@@ -3561,16 +3602,8 @@ function initStickyTitleScroll() {
       overlapOffset = 0.15;
 
     headings.forEach((heading, index) => {
-      // Save original heading content for screen readers
-      heading.setAttribute("aria-label", heading.textContent);
-
-      const split = new SplitText(heading, { type: "words,chars" });
-
-      // Hide all the separate words from screenreader
-      split.words.forEach(word => word.setAttribute("aria-hidden", "true"));
-
-      // Reset visibility on the 'stacked' headings
-      gsap.set(heading, { visibility: "visible" });
+      const split = splitHeading(heading);
+      splits.push(split);
 
       const headingTl = gsap.timeline();
       headingTl.from(split.chars, {
@@ -3595,7 +3628,8 @@ function initStickyTitleScroll() {
         masterTl.add(headingTl, `-=${overlapOffset}`);
       }
     });
-  });
+    return splits;
+  }
 }
 
 function initHeroWave() {
