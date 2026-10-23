@@ -4178,7 +4178,7 @@ function initCenterCarousel(gallery, track, items) {
     onThrowUpdate() { setActive(nearest(this.x)); },
     onThrowComplete() { index = nearest(this.x); setActive(index); normalize(); },
     onClick(e) {
-      const card = e.target.closest('[data-drag-gallery-item]');
+      const card = e.target instanceof Element ? e.target.closest('[data-drag-gallery-item]') : null;
       const i = all.indexOf(card);
       if (i > -1 && i !== index) goTo(i);
     },
