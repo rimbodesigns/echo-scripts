@@ -3443,6 +3443,24 @@ function initFooterParallax() {
       }, '<');
     }
   });
+
+  // End bar: over its own height the inner slides from -100% to 0, so it stays put at the
+  // bottom of the screen while the footer lifts off it, as if it was lying underneath
+  nextPage.querySelectorAll('[data-end-bar]').forEach(bar => {
+    const inner = bar.querySelector('[data-end-bar-inner]');
+    if (!inner) return;
+    gsap.fromTo(inner, { yPercent: -100 }, {
+      yPercent: 0,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: bar,
+        start: 'top bottom',
+        end: 'bottom bottom',
+        scrub: true,
+        invalidateOnRefresh: true
+      }
+    });
+  });
 }
 
 function initStickyTitleScroll() {
