@@ -4141,12 +4141,13 @@ function initRandomCall() {
 
 // Temporary: show one design version at a time while comparing ([data-compare="a|b|c"])
 function initCompareSwitch() {
-  const blocks = Array.from(nextPage.querySelectorAll('[data-compare]'));
+  const blocks = Array.from(nextPage.querySelectorAll('[data-compare]'))
+    .filter((block) => getComputedStyle(block).display !== 'none');
   if (blocks.length < 2) return;
   const bar = document.createElement('div');
   bar.style.cssText = 'display:flex;gap:.25rem;margin-top:1.5rem;font-size:.8rem;';
   const show = (key) => {
-    blocks.forEach((block) => { block.hidden = block.getAttribute('data-compare') !== key; });
+    blocks.forEach((block) => { block.style.display = block.getAttribute('data-compare') === key ? '' : 'none'; });
     bar.querySelectorAll('button').forEach((btn) => {
       const active = btn.dataset.key === key;
       btn.style.background = active ? '#7d8a69' : 'transparent';
