@@ -4886,10 +4886,10 @@ function initBouncyContentTabs() {
     // and mark the ends, so the edge fades only show where there's more to scroll to.
     function scrollIntoNav(button) {
       if (nav.scrollWidth <= nav.clientWidth + 1) return;
-      nav.scrollTo({
-        left: button.offsetLeft - (nav.clientWidth - button.offsetWidth) / 2,
-        behavior: reduceMotion.matches ? "auto" : "smooth",
-      });
+      const max = nav.scrollWidth - nav.clientWidth;
+      const left = gsap.utils.clamp(0, max, button.offsetLeft - (nav.clientWidth - button.offsetWidth) / 2);
+      // GSAP instead of scrollTo({ behavior: "smooth" }), which older iOS Safari ignores
+      gsap.to(nav, { scrollLeft: left, duration: dur(0.5), ease: "power3.out", overwrite: true });
     }
 
     function updateScrollEnds() {
