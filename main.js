@@ -4092,6 +4092,8 @@ function initCenterCarousel(gallery, track, items) {
   before.forEach((clone) => track.insertBefore(clone, items[0]));
   after.forEach((clone) => track.appendChild(clone));
   const all = [...before, ...items, ...after];
+  // First card of every set gets extra space in front of it: the visible "restart" between 6 and 1
+  [before[0], items[0], after[0]].forEach((card) => card.classList.add('is-loop-start'));
 
   let index = count; // first real card
   const centerX = (i) => gallery.clientWidth / 2 - (all[i].offsetLeft + all[i].offsetWidth / 2);
@@ -4109,7 +4111,10 @@ function initCenterCarousel(gallery, track, items) {
 
   function setActive(i) {
     const r = real(i);
-    all.forEach((card, k) => card.classList.toggle('is-active', real(k) === r));
+    all.forEach((card, k) => {
+      card.classList.toggle('is-active', real(k) === r);
+      card.setAttribute('data-step-distance', String(Math.min(3, Math.abs(k - i))));
+    });
     if (counter) counter.textContent = `${pad(r + 1)} / ${pad(count)}`;
   }
 
