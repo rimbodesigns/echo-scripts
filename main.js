@@ -10,7 +10,6 @@ let pageCleanups = [];
 const onPageLeave = (fn) => pageCleanups.push(fn);
 
 let radialSliderDraggables = [];
-let perspectiveTilesObservers = [];
 const hasLenis = typeof window.Lenis !== "undefined";
 const hasScrollTrigger = typeof window.ScrollTrigger !== "undefined";
 const rmMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -18,7 +17,6 @@ let reducedMotion = rmMQ.matches;
 rmMQ.addEventListener?.("change", e => (reducedMotion = e.matches));
 rmMQ.addListener?.(e => (reducedMotion = e.matches));
 const has = (s) => !!nextPage.querySelector(s);
-let staggerDefault = 0.05;
 let durationDefault = 0.6;
 CustomEase.create("osmo", "0.625, 0.05, 0, 1");
 CustomEase.create("osmo2", "M0,0 C0.625,0.05 0,1 1,1");
@@ -57,17 +55,13 @@ function initAfterEnterFunctions(next) {
   // if (has('[data-something]')) initSomething();
   if (has('[data-underlay-nav-menu]')) initFixedUnderlayNavigation();
   if (has('[data-button-animate-chars]')) initButtonCharacterStagger();
-  if (has('[data-radial-text-marquee-init]')) initRadialTextMarquee();
   if (has('[data-shutter-scroll-transition]')) initShutterScrollTransition();
   if (has('[data-odometer-group]')) initNumberOdometer();
   if (has('[data-accordion-css-init]')) initAccordionCSS();
-  if (has('[data-sticky-feature-wrap]')) initStickyFeatures();
-  if (has('[data-step-timeline-init]')) initStepByStepTimeline();
   if (has('[data-form-validate]')) initAdvancedFormValidation();
   if (has('[data-interactive-collage-init]')) initCollageFocusCardOnHover();
   if (has('[data-momentum-hover-init]')) initMomentumBasedHover();
   if (has('[data-radial-slider-init]')) initRadialCardsSlider();
-  if (has('[data-curve-on-scroll]')) initSectionCurveOnScroll();
   if (has('[data-cta-card]')) initCtaCard();
   if (has('[data-perspective-tiles-init]')) init3dPerspectiveTiles();
   if (has('[data-sticky-title="wrap"]')) initStickyTitleScroll();
@@ -358,7 +352,7 @@ barba.hooks.afterEnter(data => {
   }
 });
 barba.init({
-  debug: true, // Set to 'false' in production
+  debug: false,
   timeout: 7000,
   preventRunning: true,
   transitions: [
@@ -535,221 +529,6 @@ function initButtonCharacterStagger() {
   });
 }
 
-function initRadialTextMarquee() {
-  const wraps = nextPage.querySelectorAll('[data-radial-text-marquee-init]');
-  if (!wraps.length) return;
-  const ns = 'http://www.w3.org/2000/svg';
-  const xns = 'http://www.w3.org/1999/xlink';
-  const prm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const isSafari = (() => {
-    const ua = navigator.userAgent;
-    return /Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR/i.test(ua);
-  })();
-  const clamp = (n, a, b) => Math.min(b, Math.max(a, Number(n) || 0));
-  const speedMul = () => {
-    const w = window.innerWidth || 2000;
-    const t = clamp((w - 250) / (2000 - 250), 0, 1);
-    return 0.5 + t * (1 - 0.5);
-  };
-  const lsToPx = (ls, fs) => {
-    if (!ls || ls === 'normal') return 0;
-    if (ls.endsWith('px')) return parseFloat(ls) || 0;
-    if (ls.endsWith('em')) return (parseFloat(ls) || 0) * fs;
-    if (ls.endsWith('rem')) {
-      const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      return (parseFloat(ls) || 0) * root;
-    }
-    const n = parseFloat(ls);
-    return Number.isFinite(n) ? n : 0;
-  };
-  const syncType = (fromEl, svgText, svgTextPath) => {
-    const s = getComputedStyle(fromEl);
-    const fsPx = parseFloat(s.fontSize) || 16;
-    const lsPx = lsToPx(s.letterSpacing, fsPx);
-    svgText.setAttribute('font-family', s.fontFamily);
-    svgText.setAttribute('font-size', s.fontSize);
-    svgText.setAttribute('font-weight', s.fontWeight);
-    svgText.setAttribute('dominant-baseline', 'alphabetic');
-    svgText.setAttribute('text-rendering', 'geometricPrecision');
-    svgText.setAttribute('fill', s.color);
-    svgText.setAttribute('letter-spacing', `${lsPx}px`);
-    svgText.setAttribute('font-kerning', 'none');
-    svgText.setAttribute('font-feature-settings', '"kern" 0, "liga" 0, "clig" 0');
-    if (svgTextPath) svgTextPath.setAttribute('letter-spacing', `${lsPx}px`);
-    return { fsPx, lsPx, ff: s.fontFamily, fw: s.fontWeight, fz: s.fontSize };
-  };
-  const tspan = (tp, v, fill, lsPx) => {
-    const t = document.createElementNS(ns, 'tspan');
-    t.textContent = v;
-    if (fill) t.setAttribute('fill', fill);
-    if (lsPx != null) t.setAttribute('letter-spacing', `${lsPx}px`);
-    tp.appendChild(t);
-  };
-  const buildRun = (tp, text, spacer, spacerColor, pad, reps, lsPx) => {
-    tp.textContent = '';
-    for (let i = 0; i < reps; i++) {
-      tspan(tp, text, null, lsPx);
-      tspan(tp, pad, null, lsPx);
-      tspan(tp, spacer, spacerColor, lsPx);
-      tspan(tp, pad, null, lsPx);
-    }
-  };
-  const circleR = (half, level01) => {
-    if (level01 <= 0) return half * 200;
-    const inv = 1 - level01;
-    return half * (1.01 + inv * inv * 16.99);
-  };
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  const measureLS = (str, fontCss, lsPx) => {
-    if (!ctx) return 0;
-    ctx.font = fontCss;
-    const txt = (str || '').replace(/\u00A0/g, ' ');
-    const w = ctx.measureText(txt).width || 0;
-    const glyphs = Array.from(txt).length;
-    return w + Math.max(glyphs - 1, 0) * (lsPx || 0);
-  };
-  const makeSvg = (wrap) => {
-    const svg = document.createElementNS(ns, 'svg');
-    const defs = document.createElementNS(ns, 'defs');
-    const g = document.createElementNS(ns, 'g');
-    const path = document.createElementNS(ns, 'path');
-    const text = document.createElementNS(ns, 'text');
-    const tp = document.createElementNS(ns, 'textPath');
-    const id = `rtm-${Math.random().toString(16).slice(2)}`;
-    svg.setAttribute('xmlns', ns);
-    svg.setAttribute('xmlns:xlink', xns);
-    Object.assign(svg.style, {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      overflow: 'visible',
-      pointerEvents: 'none',
-      display: 'block'
-    });
-    svg.setAttribute('aria-hidden', 'true');
-    svg.setAttribute('focusable', 'false');
-    path.setAttribute('id', id);
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', 'none');
-    tp.setAttributeNS(xns, 'xlink:href', `#${id}`);
-    tp.setAttribute('text-anchor', 'start');
-    tp.setAttribute('startOffset', '0px');
-    text.appendChild(tp);
-    defs.appendChild(path);
-    svg.appendChild(defs);
-    g.appendChild(path);
-    g.appendChild(text);
-    svg.appendChild(g);
-    wrap.appendChild(svg);
-    const textEl = wrap.querySelector('[data-radial-text-marquee-text]');
-    if (textEl) textEl.style.opacity = '0';
-    return { svg, g, path, text, tp };
-  };
-  wraps.forEach((wrap) => {
-    const textEl = wrap.querySelector('[data-radial-text-marquee-text]');
-    if (!textEl) return;
-    const st = { ...makeSvg(wrap), tw: null, px: { x: 0 }, raf: 0, qs: null };
-    const rebuild = () => {
-      const baseText = (textEl.textContent || '').trim();
-      if (!baseText) return;
-      const speed = clamp(wrap.getAttribute('data-radial-text-marquee-speed') || 4, 0.1, 200);
-      const speedPx = Math.max(speed * 100 * speedMul(), 1);
-      const radiusLevel = clamp(wrap.getAttribute('data-radial-text-marquee-radius') || 10, 0,
-        10);
-      const level01 = radiusLevel / 10;
-      const spacer = wrap.getAttribute('data-radial-text-marquee-spacer') || '•';
-      const spacerColor = wrap.getAttribute('data-radial-text-marquee-spacer-color') || null;
-      const padCount = clamp(wrap.getAttribute('data-radial-text-marquee-spacer-padding') ||
-        1, 0, 20);
-      const pad = '\u00A0'.repeat(padCount);
-      const typo = syncType(textEl, st.text, st.tp);
-      const wrapW = Math.max(wrap.clientWidth || 1, 1);
-      const wrapH = Math.max(wrap.clientHeight || textEl.offsetHeight || 1, 1);
-      const bleed = typo.fsPx * 2;
-      const w = wrapW + bleed * 2;
-      const h = wrapH;
-      Object.assign(st.svg.style, { width: `${w}px`, height: `${h}px`, left: `${-bleed}px` });
-      st.svg.setAttribute('width', w);
-      st.svg.setAttribute('height', h);
-      st.svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-      const half = w / 2;
-      const r = level01 <= 0.0001 ? half * 200 : Math.max(circleR(half, level01), half +
-        0.001);
-      const under = Math.max(r * r - half * half, 0);
-      const y = Math.max(r - Math.sqrt(under), 0);
-      st.path.setAttribute(
-        'd',
-        level01 <= 0.0001 ? `M 0 ${y} L ${w} ${y}` : `M 0 ${y} A ${r} ${r} 0 0 1 ${w} ${y}`
-      );
-      st.text.setAttribute('x', '0');
-      st.text.setAttribute('y', `${y}`);
-      st.g.setAttribute('transform', `translate(0 ${typo.fsPx})`);
-      textEl.style.opacity = '0';
-      cancelAnimationFrame(st.raf);
-      st.raf = requestAnimationFrame(() => {
-        const fontCss = `${typo.fw} ${typo.fz} ${typo.ff}`;
-        let loopLen =
-          measureLS(baseText, fontCss, typo.lsPx) +
-          measureLS(pad, fontCss, typo.lsPx) +
-          measureLS(spacer, fontCss, typo.lsPx) +
-          measureLS(pad, fontCss, typo.lsPx);
-        loopLen = Math.max(loopLen || 0, 1);
-        const pathLen = st.path.getTotalLength ? st.path.getTotalLength() : wrapW;
-        const targetCover = Math.max(pathLen * 4, wrapW * 8);
-        const reps = clamp(Math.ceil(targetCover / loopLen) + 6, 6, 600);
-        buildRun(st.tp, baseText, spacer, spacerColor, pad, reps, typo.lsPx);
-        if (!isSafari) {
-          const fullLen = st.tp.getComputedTextLength();
-          if (Number.isFinite(fullLen) && fullLen > 0) {
-            const perUnit = fullLen / reps;
-            if (Number.isFinite(perUnit) && perUnit > 0) loopLen = perUnit;
-          }
-        }
-        loopLen = Math.max(loopLen, 1);
-        if (st.tw) st.tw.kill();
-        st.tw = null;
-        st.qs = gsap && gsap.quickSetter ? gsap.quickSetter(st.tp, 'attr') : null;
-        const setOffset = (v) => {
-          const val = `${v.toFixed(3)}px`;
-          if (st.qs) st.qs({ startOffset: val });
-          else st.tp.setAttribute('startOffset', val);
-        };
-        st.px.x = 0;
-        st.tw = gsap.to(st.px, {
-          x: loopLen,
-          duration: loopLen / speedPx,
-          ease: 'none',
-          repeat: -1,
-          onUpdate: () => {
-            const x = ((st.px.x % loopLen) + loopLen) % loopLen;
-            setOffset(-x);
-          }
-        });
-        // Keeps user accessibility preference intact, otherwise runs continuously
-        if (prm) st.tw.pause();
-      });
-    };
-    const schedule = (() => {
-      let raf = 0;
-      return () => {
-        cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(rebuild);
-      };
-    })();
-    rebuild();
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule).catch(
-      () => {});
-    else setTimeout(schedule, 150);
-    if (window.ResizeObserver) {
-      const ro = new ResizeObserver(schedule);
-      ro.observe(wrap);
-      ro.observe(textEl);
-    } else {
-      window.addEventListener('resize', schedule);
-    }
-  });
-}
 
 function initFixedUnderlayNavigation() {
   CustomEase.create("energy", "M0,0 C0.32,0.72 0,1 1,1")
@@ -1974,238 +1753,7 @@ function initCursorMarqueeEffect() {
   }, 500);
 }
 
-function initStickyFeatures(root) {
-  const wraps = Array.from((root || document).querySelectorAll("[data-sticky-feature-wrap]"));
-  if (!wraps.length) return;
 
-  wraps.forEach(w => {
-    const visualWraps = Array.from(w.querySelectorAll("[data-sticky-feature-visual-wrap]"));
-    const items = Array.from(w.querySelectorAll("[data-sticky-feature-item]"));
-    const progressBar = w.querySelector("[data-sticky-feature-progress]");
-
-    if (visualWraps.length !== items.length) {
-      console.warn("[initStickyFeatures] visualWraps and items count do not match:", {
-        visualWraps: visualWraps.length,
-        items: items.length,
-        wrap: w
-      });
-    }
-
-    const count = Math.min(visualWraps.length, items.length);
-    if (count < 1) return;
-
-    const rm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const DURATION = rm ? 0.01 : 0.75; // If user prefers reduced motion, reduce duration
-    const EASE = "power4.inOut";
-    const SCROLL_AMOUNT = 0.9; // % of scroll used for step transitions
-
-    const getTexts = el => Array.from(el.querySelectorAll("[data-sticky-feature-text]"));
-
-    if (visualWraps[0]) gsap.set(visualWraps[0], { clipPath: "inset(0% round 0.75em)" });
-    gsap.set(items[0], { autoAlpha: 1 });
-
-    let currentIndex = 0;
-
-    // Transition Function
-    function transition(fromIndex, toIndex) {
-      if (fromIndex === toIndex) return;
-      const tl = gsap.timeline({ defaults: { overwrite: "auto" } });
-
-      if (fromIndex < toIndex) {
-        tl.to(visualWraps[toIndex], {
-          clipPath: "inset(0% round 0.75em)",
-          duration: DURATION,
-          ease: EASE
-        }, 0);
-      } else {
-        tl.to(visualWraps[fromIndex], {
-          clipPath: "inset(50% round 0.75em)",
-          duration: DURATION,
-          ease: EASE
-        }, 0);
-      }
-      animateOut(items[fromIndex]);
-      animateIn(items[toIndex]);
-    }
-
-    // Fade out text content items
-    function animateOut(itemEl) {
-      const texts = getTexts(itemEl);
-      gsap.to(texts, {
-        autoAlpha: 0,
-        y: -30,
-        ease: "power4.out",
-        duration: 0.4,
-        onComplete: () => gsap.set(itemEl, { autoAlpha: 0 })
-      });
-    }
-
-    // Reveal incoming text content items
-    function animateIn(itemEl) {
-      const texts = getTexts(itemEl);
-      gsap.set(itemEl, { autoAlpha: 1 });
-      gsap.fromTo(texts, {
-        autoAlpha: 0,
-        y: 30
-      }, {
-        autoAlpha: 1,
-        y: 0,
-        ease: "power4.out",
-        duration: DURATION,
-        stagger: 0.1
-      });
-    }
-
-    const steps = Math.max(1, count - 1);
-
-    ScrollTrigger.create({
-      trigger: w,
-      start: "center center",
-      end: () => `+=${steps * 100}%`,
-      pin: true,
-      scrub: true,
-      invalidateOnRefresh: true,
-      onUpdate: self => {
-        const p = Math.min(self.progress, SCROLL_AMOUNT) / SCROLL_AMOUNT;
-        let idx = Math.floor(p * steps + 1e-6);
-        idx = Math.max(0, Math.min(steps, idx));
-
-        gsap.to(progressBar, {
-          scaleX: p,
-          ease: "none"
-        })
-
-        if (idx !== currentIndex) {
-          transition(currentIndex, idx);
-          currentIndex = idx;
-        }
-      }
-    });
-  });
-}
-
-function initStepByStepTimeline() {
-  const root = document.querySelector("[data-step-timeline-init]");
-  if (!root) return;
-
-  const line = root.querySelector("[data-step-timeline-line]");
-  const fill = root.querySelector("[data-step-timeline-fill]");
-  const items = Array.from(root.querySelectorAll("[data-step-timeline-item]"));
-  if (!line || !fill || !items.length) return;
-
-  const anchors = items.map(
-    (item) => item.querySelector("[data-step-timeline-marker]") || item
-  );
-
-  const activationInput = parseFloat(root.dataset.stepTimelineActivation);
-  const activation = Number.isNaN(activationInput) ?
-    0.5 :
-    Math.min(Math.max(activationInput, 0), 1);
-  const activationPercent = activation * 100;
-  const lastIndex = items.length - 1;
-
-  let anchorFractions = [0];
-
-  function measureLine() {
-    if (items.length < 2) {
-      line.style.height = "0px";
-      anchorFractions = [0];
-      return;
-    }
-    const base = line.parentElement.getBoundingClientRect().top;
-    const centers = anchors.map((anchor) => {
-      const box = anchor.getBoundingClientRect();
-      return box.top + box.height / 2 - base;
-    });
-    const firstCenter = centers[0];
-    const span = centers[lastIndex] - firstCenter;
-    line.style.top = firstCenter + "px";
-    line.style.height = span + "px";
-    anchorFractions = centers.map((center) =>
-      span > 0 ? (center - firstCenter) / span : 0
-    );
-  }
-
-  let currentIndex = -2;
-
-  function setCurrentIndex(index) {
-    if (index === currentIndex) return;
-    currentIndex = index;
-    items.forEach((item, i) => {
-      const status = index >= 0 && i <= index ? "active" : "inactive";
-      if (item.getAttribute("data-status") !== status) {
-        item.setAttribute("data-status", status);
-      }
-      item.toggleAttribute("data-current", i === index);
-      item.toggleAttribute("data-previous", i === index - 1);
-      item.toggleAttribute("data-next", i === index + 1);
-    });
-  }
-
-  function indexForProgress(reached, progress) {
-    if (!reached) return -1;
-    let index = 0;
-    for (let i = 0; i < anchorFractions.length; i++) {
-      if (progress + 0.0001 >= anchorFractions[i]) index = i;
-    }
-    return index;
-  }
-
-  function updateFromScroll(self) {
-    const reached = self.isActive || self.progress >= 1;
-    setCurrentIndex(indexForProgress(reached, self.progress));
-  }
-
-  setCurrentIndex(-1);
-  gsap.set(fill, { transformOrigin: "top", scaleY: 0 });
-
-  if (root._stepTimelineMedia) root._stepTimelineMedia.revert();
-  const mediaQueries = gsap.matchMedia();
-  root._stepTimelineMedia = mediaQueries;
-
-  mediaQueries.add("(prefers-reduced-motion: no-preference)", () => {
-    measureLine();
-    ScrollTrigger.addEventListener("refreshInit", measureLine);
-
-    if (items.length > 1) {
-      gsap.fromTo(
-        fill, { scaleY: 0 },
-        {
-          scaleY: 1,
-          ease: "none",
-          scrollTrigger: {
-            trigger: line,
-            start: "top " + activationPercent + "%",
-            end: "bottom " + activationPercent + "%",
-            scrub: true,
-            onUpdate: updateFromScroll,
-            onToggle: updateFromScroll,
-            onRefresh: updateFromScroll,
-          },
-        }
-      );
-    } else {
-      setCurrentIndex(0);
-    }
-
-    const refresh = () => ScrollTrigger.refresh();
-    window.addEventListener("load", refresh);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(refresh);
-
-    ScrollTrigger.refresh();
-
-    return () => {
-      window.removeEventListener("load", refresh);
-      ScrollTrigger.removeEventListener("refreshInit", measureLine);
-    };
-  });
-
-  mediaQueries.add("(prefers-reduced-motion: reduce)", () => {
-    measureLine();
-    gsap.set(fill, { scaleY: 1 });
-    setCurrentIndex(lastIndex);
-  });
-}
 
 function initAdvancedFormValidation() {
   const forms = document.querySelectorAll('[data-form-validate]');
@@ -3183,27 +2731,6 @@ function initRadialCardsSlider() {
   window.addEventListener('resize', initRadialCardsSlider._resize);
 }
 
-function initSectionCurveOnScroll() {
-  if (reducedMotion) return;
-
-  nextPage.querySelectorAll('[data-curve-on-scroll]').forEach(section => {
-    const curve = section.querySelector('[data-curve-shape]');
-    if (!curve) return;
-
-    gsap.fromTo(curve, { scaleY: 0.2 },
-    {
-      scaleY: 1,
-      ease: 'none',
-      scrollTrigger: {
-        trigger: section,
-        start: 'top top',
-        end: '+=50%',
-        scrub: 0.5,
-        invalidateOnRefresh: true
-      }
-    });
-  });
-}
 
 function initCtaCard() {
   if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
