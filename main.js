@@ -85,6 +85,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-reveal-group]')) initRevealGroups();
   if (has('[data-3d-tornado-init]')) playTornadoIntro();
   if (has('[data-scroll-indicator]')) initScrollIndicator();
+  if (has('[data-scroll-away]')) initScrollAway();
   initPageHeightWatcher();
 
   if (hasLenis) {
@@ -422,6 +423,24 @@ function initLenis() {
     lenis.raf(time * 1000);
   });
   gsap.ticker.lagSmoothing(0);
+}
+
+// Text at the bottom of a fixed hero (the tagline): scroll it up with the page during the first
+// screen, so the section that slides over the hero doesn't cover it first
+function initScrollAway() {
+  if (!hasScrollTrigger) return;
+  nextPage.querySelectorAll('[data-scroll-away]').forEach((el) => {
+    gsap.to(el, {
+      y: () => -window.innerHeight,
+      ease: 'none',
+      scrollTrigger: {
+        start: 0,
+        end: () => window.innerHeight,
+        scrub: true,
+        invalidateOnRefresh: true,
+      },
+    });
+  });
 }
 
 // Late content (lazy images, embeds) makes the page taller after the scroll animations were
@@ -3602,7 +3621,12 @@ function initHeroWave() {
     const path = wave.querySelector("[data-wave-path]");
     if (!path) return;
 
-    const amp = parseFloat(wave.getAttribute("data-wave-amp")) || 10;
+    // Phones squeeze the same shape into a narrow, relatively tall strip, which looks much
+    // wilder than on desktop: flatten the shape and the motion there
+    const calm = window.innerWidth < 768 ? 0.45 : 1;
+    const mean = BASE.reduce((sum, y) => sum + y, 0) / BASE.length;
+    const shape = BASE.map((y) => mean + (y - mean) * calm);
+    const amp = (parseFloat(wave.getAttribute("data-wave-amp")) || 10) * calm;
     const speed = parseFloat(wave.getAttribute("data-wave-speed")) || 0.35;
     const flip = wave.hasAttribute("data-wave-flip");
     const step = W / (BASE.length - 1);
@@ -3611,7 +3635,7 @@ function initHeroWave() {
     const rates = BASE.map((_, i) => 1 + (i % 2 ? 0.23 : -0.17));
 
     function render(time) {
-      const points = BASE.map((y, i) => {
+      const points = shape.map((y, i) => {
         const baseY = flip ? H - y : y; // spiegel de vorm verticaal
         return [
           Math.round(i * step),
