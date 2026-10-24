@@ -74,7 +74,6 @@ function initAfterEnterFunctions(next) {
   if (has('[data-random-call]')) initRandomCall();
   if (has('[data-newsletter]')) initNewsletterField();
   if (has('[data-btn-hover]')) initDirectionalButtonHover();
-  if (has('[data-compare]')) initCompareSwitch();
   if (has('[data-hide-current]')) initHideCurrentLinks();
   if (has('[data-bouncy-tabs-init]')) initBouncyContentTabs();
   if (has('[data-reveal-group]')) initRevealGroups();
@@ -4045,6 +4044,25 @@ function initRandomCall() {
     }).filter((p) => p.name && p.tel);
     if (!people.length) return;
 
+    // Optional phone icon: data-random-call-icon="start" (before the text) or "end" (pushed to
+    // the right). Head CSS decides where it shows (e.g. instead of the avatar on desktop).
+    const iconSpot = link.getAttribute('data-random-call-icon');
+    if (iconSpot && !link.querySelector('.btn__phone')) {
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.setAttribute('class', `btn__phone is-${iconSpot === 'end' ? 'end' : 'start'}`);
+      icon.setAttribute('viewBox', '0 0 24 24');
+      icon.setAttribute('fill', 'none');
+      icon.setAttribute('stroke', 'currentColor');
+      icon.setAttribute('stroke-width', '1.8');
+      icon.setAttribute('stroke-linecap', 'round');
+      icon.setAttribute('stroke-linejoin', 'round');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.innerHTML = '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>';
+      const text = link.querySelector('.btn__text');
+      if (iconSpot === 'end' || !text) link.appendChild(icon);
+      else text.before(icon);
+    }
+
     // Optional toggle next to the button: [data-random-call-pick="Name"] inside [data-random-call-wrap]
     const wrap = link.closest('[data-random-call-wrap]');
     const picks = wrap ? Array.from(wrap.querySelectorAll('[data-random-call-pick]')) : [];
@@ -4132,34 +4150,6 @@ function initHideCurrentLinks() {
   });
 }
 
-// Temporary: show one design version at a time while comparing ([data-compare="a|b|c"])
-function initCompareSwitch() {
-  const blocks = Array.from(nextPage.querySelectorAll('[data-compare]'))
-    .filter((block) => getComputedStyle(block).display !== 'none');
-  if (blocks.length < 2) return;
-  const bar = document.createElement('div');
-  bar.style.cssText = 'display:flex;gap:.25rem;margin-top:1.5rem;font-size:.8rem;';
-  const show = (key) => {
-    blocks.forEach((block) => { block.style.display = block.getAttribute('data-compare') === key ? '' : 'none'; });
-    bar.querySelectorAll('button').forEach((btn) => {
-      const active = btn.dataset.key === key;
-      btn.style.background = active ? '#7d8a69' : 'transparent';
-      btn.style.color = active ? '#f5f0ea' : '#7d8a69';
-    });
-  };
-  blocks.forEach((block) => {
-    const key = block.getAttribute('data-compare');
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.dataset.key = key;
-    btn.textContent = `Versie ${key.toUpperCase()}`;
-    btn.style.cssText = 'padding:.35rem .75rem;border:1px solid #7d8a69;border-radius:100em;cursor:pointer;font:inherit;';
-    btn.addEventListener('click', () => show(key));
-    bar.appendChild(btn);
-  });
-  blocks[0].parentElement.insertBefore(bar, blocks[0]);
-  show(blocks[0].getAttribute('data-compare'));
-}
 
 // Osmo Directional Button Hover: the fill circle grows from where the cursor enters and leaves
 function initDirectionalButtonHover() {
