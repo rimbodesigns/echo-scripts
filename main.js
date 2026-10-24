@@ -1137,6 +1137,12 @@ function initCascadingSlider() {
     // On a case page, leave out the slide that links to that same page
     viewport.querySelectorAll('[data-cascading-slide].w--current').forEach(el => el.remove());
     const slides = Array.from(viewport.querySelectorAll('[data-cascading-slide]'));
+    // The slides are links: role="group" from the template hides that (and their name)
+    slides.forEach(slide => {
+      if (slide.tagName !== 'A') return;
+      slide.removeAttribute('role');
+      slide.removeAttribute('aria-roledescription');
+    });
     let totalSlides = slides.length;
     if (totalSlides === 0) return;
     if (totalSlides < 9) {
@@ -3468,6 +3474,7 @@ function initLogoCardTestimonials() {
           SplitText.create(element, {
             type: "lines",
             autoSplit: true,
+            aria: "none", // a <p> can't carry aria-label; plain lines stay readable
           })
         ),
         getLines() {
@@ -4522,7 +4529,8 @@ function initRevealGroups() {
     // Split after fonts are loaded so the lines are measured correctly
     document.fonts.ready.then(() => {
       const lines = [...texts].flatMap(el =>
-        SplitText.create(el, { type: 'lines', mask: 'lines' }).lines
+        // aria: 'none': a <p> can't carry aria-label; plain lines stay readable
+        SplitText.create(el, { type: 'lines', mask: 'lines', aria: 'none' }).lines
       );
 
       const tl = gsap.timeline({ delay });
