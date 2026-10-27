@@ -431,6 +431,9 @@ function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
   } catch (e) { /* keep 1 */ }
   gsap.set(brand, { xPercent: -50, yPercent: -50, opacity: cssLogoOpacity });
   transitionWrap.appendChild(brand);
+  // The menu bar sits above the loader; it stays away until the page is revealed
+  const navHeader = document.querySelector(".underlay-nav__header");
+  if (navHeader) gsap.set(navHeader, { autoAlpha: 0 });
   html.classList.remove("echo-cards-first");
 
   gsap.set(transitionPanel, { autoAlpha: 1, y: 0, yPercent: -100 });
@@ -542,6 +545,10 @@ function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
     tl.to(transitionPanel, { yPercent: -200, duration: 1 }, "startEnter");
     tl.to(transitionPanelBottom, { scaleY: 0, duration: 1 }, "<");
     tl.from(next, { y: "25dvh", duration: 1 }, "startEnter");
+    if (navHeader) {
+      tl.to(navHeader, { autoAlpha: 1, duration: 0.6, ease: "power2.out",
+        clearProps: "opacity,visibility" }, "startEnter+=0.5");
+    }
     tl.call(() => {
       tornado._cardsLoaderActive = false;
       tornado._playIntro?.();
@@ -1000,8 +1007,7 @@ function initShutterScrollTransition() {
   function createAnimation(wrapper, rows, section, mode) {
     // A fixed section (the home hero) never moves, so trigger positions measured from it
     // drift when ScrollTrigger refreshes mid-scroll and the shutter opened again further down.
-    // Use plain scroll distances instead, and hide the hero once the shutter is fully closed
-    // (it stays covered all the way down, and the tornado stops rendering).
+    // Use plain scroll distances instead, so it stays closed all the way down.
     const isFixed = getComputedStyle(section).position === "fixed";
     const fixedEnd = parseFloat(wrapper.dataset.fixedEnd) || 0.55; // share of a screen height
     const tl = gsap.timeline({
@@ -1031,11 +1037,11 @@ function initShutterScrollTransition() {
       stagger: { each: defaultStaggerAmount, from: "end" },
       ease: "none",
     });
-    // Hide only once the (scrubbed, so slightly lagging) animation itself has closed the last
-    // row at the top; going by the scroll position flashed the hero away too early
+    // Once the shutter has closed its last row the hero is fully covered: nothing visual
+    // changes, the tornado just stops rendering behind it (hiding the hero could flash)
     if (isFixed) {
       tl.eventCallback("onUpdate", () => {
-        section.style.visibility = tl.progress() >= 0.999 ? "hidden" : "";
+        section._shutterClosed = tl.progress() >= 0.999;
       });
     }
     return tl;
@@ -1058,7 +1064,7 @@ function initShutterScrollTransition() {
     }
     const panel = instance.wrapper.querySelector("[data-shutter-scroll-panel]");
     if (panel) panel.remove();
-    (instance.wrapper.closest("section") || instance.wrapper.parentElement).style.visibility = "";
+    (instance.wrapper.closest("section") || instance.wrapper.parentElement)._shutterClosed = false;
   }
 
   function buildAll(isPhone) {
@@ -1269,7 +1275,8 @@ function init3DCardsTornado() {
 
     function tick() {
       if (!state.isActive) return;
-      if (container.style.visibility === "hidden") return; // faded out by initHeroPhoneExit
+      // Hidden by initHeroPhoneExit (phones) or covered by the closed hero shutter (desktop)
+      if (container.style.visibility === "hidden" || container._shutterClosed) return;
       const targetVelocity = autoSpeed * state.direction;
       state.velocity = gsap.utils.interpolate(state.velocity, targetVelocity, scrollEase);
       state.progress += state.velocity;
@@ -3517,7 +3524,7 @@ function initStickyTitleScroll() {
     const masterTl = gsap.timeline({
       scrollTrigger: {
         trigger: wrap,
-        start: "top 60%", // starts while the hero shutter is closing
+        start: "top 40%", // with the shorter hero spacer on larger screens: while the shutter closes
         end: "bottom bottom",
         scrub: true,
       }
