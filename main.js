@@ -1135,7 +1135,10 @@ function initCascadingSlider() {
     const prevButton = wrapper.querySelector('[data-cascading-slider-prev]');
     const nextButton = wrapper.querySelector('[data-cascading-slider-next]');
     // On a case page, leave out the slide that links to that same page
-    viewport.querySelectorAll('[data-cascading-slide].w--current').forEach(el => el.remove());
+    // (the slide can be the link itself, or a CMS collection item with the link inside)
+    viewport.querySelectorAll('[data-cascading-slide]').forEach(el => {
+      if (el.matches('.w--current') || el.querySelector('a.w--current')) el.remove();
+    });
     const slides = Array.from(viewport.querySelectorAll('[data-cascading-slide]'));
     // The slides are links: role="group" from the template hides that (and their name)
     slides.forEach(slide => {
