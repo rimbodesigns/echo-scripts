@@ -56,6 +56,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-underlay-nav-menu]')) initFixedUnderlayNavigation();
   if (has('[data-button-animate-chars]')) initButtonCharacterStagger();
   if (has('[data-shutter-scroll-transition]')) initShutterScrollTransition();
+  if (has('[data-3d-tornado-init]')) initHeroPhoneExit();
   if (has('[data-odometer-group]')) initNumberOdometer();
   if (has('[data-accordion-css-init]')) initAccordionCSS();
   if (has('[data-form-validate]')) initAdvancedFormValidation();
@@ -835,9 +836,11 @@ function initShutterScrollTransition() {
     if (panel) panel.remove();
   }
 
-  function buildAll() {
+  function buildAll(isPhone) {
     const wrappers = document.querySelectorAll("[data-shutter-scroll-transition]");
     wrappers.forEach((wrapper) => {
+      // Phones: the hero gets its own exit (initHeroPhoneExit) instead of the shutter
+      if (isPhone && wrapper.closest("[data-3d-tornado-init]")) return;
       instances.push(setupInstance(wrapper));
     });
     ScrollTrigger.refresh();
@@ -860,7 +863,7 @@ function initShutterScrollTransition() {
     },
     (context) => {
       if (context.conditions.reduceMotion) return;
-      buildAll();
+      buildAll(context.conditions.isMobile || context.conditions.isLandscape);
       return () => {
         destroyAll();
       };
@@ -1023,6 +1026,7 @@ function init3DCardsTornado() {
 
     function tick() {
       if (!state.isActive) return;
+      if (container.style.visibility === "hidden") return; // faded out by initHeroPhoneExit
       const targetVelocity = autoSpeed * state.direction;
       state.velocity = gsap.utils.interpolate(state.velocity, targetVelocity, scrollEase);
       state.progress += state.velocity;
@@ -3242,15 +3246,20 @@ function initStickyTitleScroll() {
 
   function revealFirstLine(heading) {
     const split = splitHeading(heading);
+    // Letters flip up out of the line one by one while the hero tilts away behind them
     gsap.from(split.chars, {
       autoAlpha: 0,
-      stagger: { amount: 0.7, from: "start" },
-      duration: 0.7,
-      ease: "none",
+      yPercent: 110,
+      rotationX: -90,
+      transformPerspective: 500,
+      transformOrigin: "50% 100%",
+      stagger: { amount: 0.6, from: "start" },
+      duration: 0.6,
+      ease: "power3.out",
       scrollTrigger: {
         trigger: heading,
-        start: "top 85%",
-        end: "bottom 55%",
+        start: "top 95%",
+        end: "center 55%",
         scrub: true,
       },
     });
@@ -4702,6 +4711,37 @@ function playTornadoIntro() {
 
 // Scroll hint: fades in after the intro, a dot loops down a thin line,
 // hides once the visitor scrolls, and scrolls one screen down on click.
+function initHeroPhoneExit() {
+  // Phones: the hero spiral tilts back and shrinks away as you start scrolling, then fades,
+  // while "Create for conversation." flips in below it (see revealFirstLine)
+  if (reducedMotion) return;
+  const mm = gsap.matchMedia();
+  mm.add("(max-width: 767px)", () => {
+    nextPage.querySelectorAll('[data-3d-tornado-init]').forEach(container => {
+      const scene = container.querySelector('[data-3d-tornado-list]')?.parentElement;
+      if (!scene) return;
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          start: 0,
+          end: () => window.innerHeight * 0.8,
+          scrub: true,
+          invalidateOnRefresh: true,
+        },
+      });
+      tl.to(scene, {
+        rotationX: 50,
+        yPercent: -18,
+        scale: 0.6,
+        transformPerspective: 900,
+        transformOrigin: "50% 100%",
+        ease: "power2.in",
+        duration: 1,
+      }, 0).to(container, { autoAlpha: 0, ease: "power1.in", duration: 0.6 }, 0.4);
+    });
+  });
+  onPageLeave(() => mm.revert());
+}
+
 function initScrollIndicator() {
   // Feel — tweak here
   const showDelay = 2.6; // seconds after the page has entered (after the hero text)
