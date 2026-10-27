@@ -885,6 +885,9 @@ function init3DCardsTornado() {
   // Designer with data-tornado-back-scale / data-tornado-edge-scale (1 = off)
   const defaultBackScale = 0.72; // size of a card at the back of the spiral (front = 1)
   const defaultEdgeScale = 0.85; // size of a card at the top/bottom end of the spiral (middle = 1)
+  // Phones: the cards at the front of the spiral (the ones that aren't dimmed) grow by this
+  // factor, the back cards keep their size. Override with data-tornado-front-scale-mobile (1 = off)
+  const defaultPhoneFrontScale = 2;
   const backDarkness = 0.75; // darkening applied to cards in back
   const introDuration = 1.6; // page-load intro: each card grows from 0 to full size
   const introStagger = 0.035; // delay per card, counted outward from the center card
@@ -920,6 +923,9 @@ function init3DCardsTornado() {
     };
     const backScale = readScale(container.dataset.tornadoBackScale, defaultBackScale);
     const minScale = readScale(container.dataset.tornadoEdgeScale, defaultEdgeScale);
+    const frontValue = parseFloat(container.dataset.tornadoFrontScaleMobile);
+    const frontScale = canHover ? 1 : Number.isFinite(frontValue) ?
+      gsap.utils.clamp(1, 3, frontValue) : defaultPhoneFrontScale;
     const state = {
       amount: 0,
       progress: 0,
@@ -996,7 +1002,8 @@ function init3DCardsTornado() {
         const intro = introScales ? (introScales[i]?.v ?? 0) : 1;
         const backAmount = gsap.utils.clamp(0, 1, (1 - Math.cos(angleRad)) * 0.5);
         const depthScale = 1 - backAmount * (1 - backScale);
-        const scale = baseScale * depthScale * getEdgeScale(y) * intro;
+        const frontBoost = 1 + (frontScale - 1) * (1 - backAmount);
+        const scale = baseScale * depthScale * frontBoost * getEdgeScale(y) * intro;
         const brightness = 1 - backAmount * backDark;
         const blur = backAmount * backBlur;
         gsap.set(card, {
