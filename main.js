@@ -887,7 +887,7 @@ function init3DCardsTornado() {
   const defaultEdgeScale = 0.85; // size of a card at the top/bottom end of the spiral (middle = 1)
   // Phones: the cards at the front of the spiral (the ones that aren't dimmed) grow by this
   // factor, the back cards keep their size. Override with data-tornado-front-scale-mobile (1 = off)
-  const defaultPhoneFrontScale = 2;
+  const defaultPhoneFrontScale = 1.5;
   const backDarkness = 0.75; // darkening applied to cards in back
   const introDuration = 1.6; // page-load intro: each card grows from 0 to full size
   const introStagger = 0.035; // delay per card, counted outward from the center card
