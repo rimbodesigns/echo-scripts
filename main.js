@@ -1065,14 +1065,18 @@ function initShutterScrollTransition() {
       // The rows are a fixed 3em each (Osmo embed CSS), so 16 rows were only 768px tall and
       // on taller screens the top of the hero was never covered. Stretch them over the hero.
       wrapper.style.top = "0px";
-      rows[0].parentElement.style.height = "100%";
+      const panel = rows[0].parentElement;
+      panel.style.height = "100%";
       rows.forEach((row) => {
         row.style.height = "auto";
         row.style.flex = "1 1 0";
+        row.style.marginBottom = "-1px"; // overlap, so no hairline seams between fractional rows
       });
       const edge = mode === "cover" ? createSoftEdge(wrapper) : null;
       tl.eventCallback("onUpdate", () => {
         section._shutterClosed = tl.progress() >= 0.999;
+        // Fully closed: one solid fill behind the rows, so not a single seam can show
+        panel.style.backgroundColor = section._shutterClosed ? "currentColor" : "";
         if (edge) updateSoftEdge(edge, wrapper, rows);
       });
       tl.scrollTrigger = playOnFirstScroll(tl); // so destroyInstance kills it too
