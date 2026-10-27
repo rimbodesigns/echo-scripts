@@ -620,6 +620,23 @@ function initLenis() {
 
 // Text at the bottom of a fixed hero (the tagline): scroll it up with the page during the first
 // screen, so the section that slides over the hero doesn't cover it first
+// Desktop/tablet hero exit: plays as a whole once you start scrolling and reverses when you
+// scroll back to the very top. Scrubbed, it showed half-finished states (a half-covered
+// tornado, half-dropped words) whenever you stopped scrolling halfway.
+const heroExitStart = () => window.innerHeight * 0.05;
+
+function playOnFirstScroll(tl) {
+  const trigger = ScrollTrigger.create({
+    start: heroExitStart,
+    end: "max",
+    invalidateOnRefresh: true,
+    onEnter: () => tl.play(),
+    onLeaveBack: () => tl.reverse(),
+  });
+  if (window.scrollY > heroExitStart()) tl.progress(1);
+  return trigger;
+}
+
 function initScrollAway() {
   if (!hasScrollTrigger) return;
   nextPage.querySelectorAll('[data-scroll-away]').forEach((el) => {
@@ -642,18 +659,14 @@ function initScrollAway() {
     // the fonts are in and hands them over with the reveal:words event
     el.addEventListener('reveal:words', ({ detail: words }) => {
       mm.add('(min-width: 768px)', () => {
-        gsap.to(words, {
+        const tl = gsap.timeline({ paused: true });
+        tl.to(words, {
           yPercent: 110,
           ease: 'power2.in',
-          duration: 0.6,
-          stagger: { each: 0.035 },
-          scrollTrigger: {
-            start: 0,
-            end: () => window.innerHeight * 0.5,
-            scrub: 0.6,
-            invalidateOnRefresh: true,
-          },
+          duration: 0.45,
+          stagger: { amount: 0.35 },
         });
+        playOnFirstScroll(tl);
       });
     }, { once: true });
     onPageLeave(() => mm.revert());
@@ -1015,17 +1028,11 @@ function initShutterScrollTransition() {
 
   function createAnimation(wrapper, rows, section, mode) {
     // A fixed section (the home hero) never moves, so trigger positions measured from it
-    // drift when ScrollTrigger refreshes mid-scroll and the shutter opened again further down.
-    // Use plain scroll distances instead, so it stays closed all the way down.
+    // drift when ScrollTrigger refreshes mid-scroll. And scrubbed, it froze half-closed
+    // whenever you stopped scrolling halfway. So the hero shutter plays as a whole instead.
     const isFixed = getComputedStyle(section).position === "fixed";
-    const fixedEnd = parseFloat(wrapper.dataset.fixedEnd) || 0.55; // share of a screen height
-    const tl = gsap.timeline({
-      scrollTrigger: isFixed ? {
-        start: 0,
-        end: () => window.innerHeight * fixedEnd,
-        scrub: defaultScrub,
-        invalidateOnRefresh: true,
-      } : {
+    const tl = gsap.timeline(isFixed ? { paused: true } : {
+      scrollTrigger: {
         trigger: section,
         start: getScrollStart(wrapper, mode),
         end: getScrollEnd(wrapper, mode),
@@ -1040,7 +1047,13 @@ function initShutterScrollTransition() {
       scaleY: fromScale,
       transformOrigin: origin,
     });
-    tl.to(rows, {
+    tl.to(rows, isFixed ? {
+      // The hero: one smooth close (bottom row first) once you start scrolling
+      scaleY: toScale,
+      duration: 0.55,
+      stagger: { each: 0.035, from: "end" },
+      ease: "power2.inOut",
+    } : {
       scaleY: toScale,
       duration: defaultShutterDuration,
       stagger: { each: defaultStaggerAmount, from: "end" },
@@ -1054,6 +1067,7 @@ function initShutterScrollTransition() {
         section._shutterClosed = tl.progress() >= 0.999;
         if (edge) updateSoftEdge(edge, wrapper, rows);
       });
+      tl.scrollTrigger = playOnFirstScroll(tl); // so destroyInstance kills it too
     }
     return tl;
   }
