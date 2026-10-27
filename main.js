@@ -1062,6 +1062,14 @@ function initShutterScrollTransition() {
     // Once the shutter has closed its last row the hero is fully covered: nothing visual
     // changes, the tornado just stops rendering behind it (hiding the hero could flash)
     if (isFixed) {
+      // The rows are a fixed 3em each (Osmo embed CSS), so 16 rows were only 768px tall and
+      // on taller screens the top of the hero was never covered. Stretch them over the hero.
+      wrapper.style.top = "0px";
+      rows[0].parentElement.style.height = "100%";
+      rows.forEach((row) => {
+        row.style.height = "auto";
+        row.style.flex = "1 1 0";
+      });
       const edge = mode === "cover" ? createSoftEdge(wrapper) : null;
       tl.eventCallback("onUpdate", () => {
         section._shutterClosed = tl.progress() >= 0.999;
