@@ -1049,11 +1049,46 @@ function initShutterScrollTransition() {
     // Once the shutter has closed its last row the hero is fully covered: nothing visual
     // changes, the tornado just stops rendering behind it (hiding the hero could flash)
     if (isFixed) {
+      const edge = mode === "cover" ? createSoftEdge(wrapper) : null;
       tl.eventCallback("onUpdate", () => {
         section._shutterClosed = tl.progress() >= 0.999;
+        if (edge) updateSoftEdge(edge, wrapper, rows);
       });
     }
     return tl;
+  }
+
+  // Hero shutter: a fade above the closing rows, so the photos disappear into the cream
+  // instead of being cut by a hard line (and the half-closed rows on top blur into it)
+  const softEdgeHeight = 96; // px of fade above the highest closing row
+
+  function createSoftEdge(wrapper) {
+    const edge = document.createElement("div");
+    edge.setAttribute("data-shutter-scroll-edge", "");
+    edge.style.cssText = "position:absolute;left:0;right:0;top:0;height:0;" +
+      "background:linear-gradient(to bottom, transparent, currentColor);pointer-events:none;";
+    wrapper.appendChild(edge);
+    return edge;
+  }
+
+  function updateSoftEdge(edge, wrapper, rows) {
+    const rowHeight = wrapper.offsetHeight / rows.length;
+    let edgeTop = Infinity; // highest point any row has closed up to
+    let solidTop = wrapper.offsetHeight; // top of the fully closed block at the bottom
+    let solid = true;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const scale = gsap.getProperty(rows[i], "scaleY");
+      if (scale > 0.001) edgeTop = Math.min(edgeTop, (i + 1 - scale) * rowHeight);
+      if (solid && scale >= 0.999) solidTop = i * rowHeight;
+      else solid = false;
+    }
+    if (edgeTop === Infinity) {
+      edge.style.height = "0px";
+      return;
+    }
+    const top = Math.min(edgeTop, solidTop) - softEdgeHeight;
+    edge.style.top = `${top}px`;
+    edge.style.height = `${solidTop - top}px`;
   }
 
   function setupInstance(wrapper) {
@@ -1073,6 +1108,7 @@ function initShutterScrollTransition() {
     }
     const panel = instance.wrapper.querySelector("[data-shutter-scroll-panel]");
     if (panel) panel.remove();
+    instance.wrapper.querySelector("[data-shutter-scroll-edge]")?.remove();
     (instance.wrapper.closest("section") || instance.wrapper.parentElement)._shutterClosed = false;
   }
 
