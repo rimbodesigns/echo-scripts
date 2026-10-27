@@ -1013,16 +1013,20 @@ function init3DCardsTornado() {
     let introScales = reducedMotion ? null : [];
 
     // Scroll-out on phones (initHeroPhoneExit sets container._exitProgress 0 → 1): the
-    // reverse of the intro, outer cards shrink away first and the middle card last
+    // reverse of the intro, outer cards shrink away first and the middle card last.
+    // Cards that are already small (at the back) shrink extra slowly over the whole scroll.
     const exitEase = gsap.parseEase("power2.inOut");
+    const exitSlowEase = gsap.parseEase("power2.in"); // barely moves at first, gone at the end
     const exitSpread = 0.35; // how far the outer cards run ahead of the middle one (lower = calmer)
 
-    function getExitScale(index) {
+    function getExitScale(index, backAmount) {
       const progress = container._exitProgress || 0;
       if (!progress) return 1;
       const fromMiddle = Math.min(Math.abs(index) / (state.amount * 0.5), 1);
       const start = (1 - fromMiddle) * exitSpread;
-      return 1 - exitEase(gsap.utils.clamp(0, 1, (progress - start) / (1 - exitSpread)));
+      const inOrder = 1 - exitEase(gsap.utils.clamp(0, 1, (progress - start) / (1 - exitSpread)));
+      const slow = 1 - exitSlowEase(progress);
+      return gsap.utils.interpolate(inOrder, Math.max(inOrder, slow), backAmount);
     }
 
     function render() {
@@ -1040,10 +1044,10 @@ function init3DCardsTornado() {
         const nearMiddle = 1 - Math.min(Math.abs(y) / state.halfHeight, 1);
         const baseScale = minScale + nearMiddle * (1 - minScale);
         const intro = introScales ? (introScales[i]?.v ?? 0) : 1;
-        const exit = getExitScale(index);
         const backAmount = gsap.utils.clamp(0, 1, (1 - Math.cos(angleRad)) * 0.5);
         const depthScale = 1 - backAmount * (1 - backScale);
         const frontBoost = 1 + (frontScale - 1) * (1 - backAmount);
+        const exit = getExitScale(index, backAmount);
         const scale = baseScale * depthScale * frontBoost * getEdgeScale(y) * intro * exit;
         const brightness = 1 - backAmount * backDark;
         const blur = backAmount * backBlur;
@@ -4771,7 +4775,7 @@ function initHeroPhoneExit() {
       ScrollTrigger.create({
         start: 0,
         ...(heading
-          ? { endTrigger: heading, end: "center 30%" }
+          ? { endTrigger: heading, end: "center 15%" }
           : { end: () => window.innerHeight * 0.8 }),
         invalidateOnRefresh: true,
         onUpdate: (self) => {
