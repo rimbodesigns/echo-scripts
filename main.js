@@ -1153,6 +1153,21 @@ function initCascadingSlider() {
       slide.removeAttribute('role');
       slide.removeAttribute('aria-roledescription');
     });
+    // Phones have room for one line of services: only the first two ("Social media & Branding").
+    // The full list stays as typed in the Designer and comes back on wider screens.
+    const phoneQuery = window.matchMedia('(max-width: 767px)');
+    function fitServices() {
+      viewport.querySelectorAll('.cascading-slider__meta:not(.is-since)').forEach(meta => {
+        if (!meta.dataset.fullText) meta.dataset.fullText = meta.textContent.trim();
+        const parts = meta.dataset.fullText.split(/\s+[-–·|]\s+/);
+        meta.textContent = phoneQuery.matches && parts.length > 1
+          ? parts.slice(0, 2).join(' & ')
+          : meta.dataset.fullText;
+      });
+    }
+    fitServices();
+    phoneQuery.addEventListener('change', fitServices);
+    onPageLeave(() => phoneQuery.removeEventListener('change', fitServices));
     let totalSlides = slides.length;
     if (totalSlides === 0) return;
     if (totalSlides < 9) {
