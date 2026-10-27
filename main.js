@@ -3247,12 +3247,12 @@ function initStickyTitleScroll() {
   function revealFirstLine(heading) {
     const split = splitHeading(heading);
     // Letters flip up out of the line one by one while the hero tilts away behind them
+    // Perspective is set once: tweening it from 0 distorts the letters wildly
+    gsap.set(split.chars, { transformPerspective: 500, transformOrigin: "50% 100%" });
     gsap.from(split.chars, {
       autoAlpha: 0,
       yPercent: 110,
       rotationX: -90,
-      transformPerspective: 500,
-      transformOrigin: "50% 100%",
       stagger: { amount: 0.6, from: "start" },
       duration: 0.6,
       ease: "power3.out",
@@ -4720,6 +4720,7 @@ function initHeroPhoneExit() {
     nextPage.querySelectorAll('[data-3d-tornado-init]').forEach(container => {
       const scene = container.querySelector('[data-3d-tornado-list]')?.parentElement;
       if (!scene) return;
+      gsap.set(scene, { transformPerspective: 900, transformOrigin: "50% 100%" });
       const tl = gsap.timeline({
         scrollTrigger: {
           start: 0,
@@ -4732,8 +4733,6 @@ function initHeroPhoneExit() {
         rotationX: 50,
         yPercent: -18,
         scale: 0.6,
-        transformPerspective: 900,
-        transformOrigin: "50% 100%",
         ease: "power2.in",
         duration: 1,
       }, 0).to(container, { autoAlpha: 0, ease: "power1.in", duration: 0.6 }, 0.4);
