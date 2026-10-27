@@ -2827,6 +2827,8 @@ function init3dPerspectiveTiles() {
     let stepTimeline;
     let delayedCall;
     let activeTileIndex = -1;
+    let isDragging = false;
+    let settleTween;
 
     gsap.set(collection, {
       transformStyle: "preserve-3d",
@@ -2909,6 +2911,7 @@ function init3dPerspectiveTiles() {
       delayedCall?.kill();
 
       if (!isInView || (pauseOnHover && isHoveringActive)) return;
+      if (isDragging || settleTween?.isActive()) return;
 
       delayedCall = gsap.delayedCall(pauseDuration, goToNextTile);
     }
@@ -2993,6 +2996,113 @@ function init3dPerspectiveTiles() {
           waitForNextTile();
         }
       });
+    }
+
+    // Touch screens: swipe the ring left/right. Tapping the front tile still opens the link,
+    // tapping a side tile turns it to the front. Vertical swipes keep scrolling the page.
+    if (!canHover) {
+      const resumeDelay = 3; // seconds the ring rests after a swipe before it turns on its own
+      const axisThreshold = 8; // px before deciding between swiping the ring and scrolling
+      let startX = 0;
+      let startY = 0;
+      let startProgress = 0;
+      let lastX = 0;
+      let lastTime = 0;
+      let velocity = 0; // in tiles per second
+      let axis = null;
+      let didDrag = false;
+
+      container.style.touchAction = "pan-y";
+
+      // Pixels the front tile travels per step, so it follows the finger exactly
+      const pxPerStep = () => radius * fullCircle / tileCount;
+      const currentProgress = () =>
+        tileStates.reduce((sum, state) => sum + state.progress, 0) / tileCount;
+
+      function setProgress(value) {
+        tileStates.forEach((state) => { state.progress = value; });
+        renderPerspectiveTiles();
+      }
+
+      function settleTo(target) {
+        delayedCall?.kill();
+        stepTimeline?.kill();
+        settleTween?.kill();
+        const proxy = { progress: currentProgress() };
+        settleTween = gsap.to(proxy, {
+          progress: target,
+          duration: 0.8,
+          ease: "power3.out",
+          onUpdate: () => setProgress(proxy.progress),
+          onComplete: () => {
+            delayedCall = gsap.delayedCall(resumeDelay, waitForNextTile);
+          }
+        });
+      }
+
+      container.addEventListener("pointerdown", (event) => {
+        if (!event.isPrimary) return;
+        startX = lastX = event.clientX;
+        startY = event.clientY;
+        lastTime = performance.now();
+        velocity = 0;
+        axis = null;
+        didDrag = false;
+      });
+
+      container.addEventListener("pointermove", (event) => {
+        if (!event.isPrimary || axis === "y") return;
+        const dx = event.clientX - startX;
+        if (!axis) {
+          const dy = event.clientY - startY;
+          if (Math.max(Math.abs(dx), Math.abs(dy)) < axisThreshold) return;
+          axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+          if (axis === "y") return;
+          isDragging = true;
+          didDrag = true;
+          delayedCall?.kill();
+          stepTimeline?.kill();
+          settleTween?.kill();
+          startProgress = currentProgress();
+          container.setPointerCapture?.(event.pointerId);
+        }
+        const now = performance.now();
+        const dt = Math.max(1, now - lastTime) / 1000;
+        const step = -(event.clientX - lastX) / pxPerStep() * direction;
+        velocity = gsap.utils.interpolate(velocity, step / dt, 0.4);
+        lastX = event.clientX;
+        lastTime = now;
+        setProgress(startProgress - dx / pxPerStep() * direction);
+      });
+
+      const endDrag = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        axis = null;
+        // A quick flick carries on a bit before it snaps to the nearest tile
+        const projected = currentProgress() + gsap.utils.clamp(-1.5, 1.5, velocity * 0.25);
+        settleTo(Math.round(projected));
+      };
+      container.addEventListener("pointerup", endDrag);
+      container.addEventListener("pointercancel", endDrag);
+
+      // Capture phase, so Barba never sees a click that ended a swipe or turned the ring
+      collection.addEventListener("click", (event) => {
+        if (didDrag) {
+          didDrag = false;
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        const tile = event.target.closest("[data-perspective-tiles-item]");
+        if (!tile || tile.getAttribute("data-perspective-tiles-item-status") === "active") return;
+        event.preventDefault();
+        event.stopPropagation();
+        const current = currentProgress();
+        let offset = ((tiles.indexOf(tile) - current) % tileCount + tileCount) % tileCount;
+        if (offset > tileCount / 2) offset -= tileCount;
+        settleTo(Math.round(current + offset));
+      }, true);
     }
 
     updateMeasurements();
