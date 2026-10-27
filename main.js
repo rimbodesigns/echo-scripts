@@ -988,6 +988,19 @@ function init3DCardsTornado() {
     // page has entered; null means no intro is running (every card at full size).
     let introScales = reducedMotion ? null : [];
 
+    // Scroll-out on phones (initHeroPhoneExit sets container._exitProgress 0 → 1): the
+    // reverse of the intro, outer cards shrink away first and the middle card last
+    const exitEase = gsap.parseEase("power2.inOut");
+    const exitSpread = 0.55; // how far the outer cards run ahead of the middle one
+
+    function getExitScale(index) {
+      const progress = container._exitProgress || 0;
+      if (!progress) return 1;
+      const fromMiddle = Math.min(Math.abs(index) / (state.amount * 0.5), 1);
+      const start = (1 - fromMiddle) * exitSpread;
+      return 1 - exitEase(gsap.utils.clamp(0, 1, (progress - start) / (1 - exitSpread)));
+    }
+
     function render() {
       const radius = orbitDepth * state.em;
       state.cards.forEach((card, i) => {
@@ -1003,10 +1016,11 @@ function init3DCardsTornado() {
         const nearMiddle = 1 - Math.min(Math.abs(y) / state.halfHeight, 1);
         const baseScale = minScale + nearMiddle * (1 - minScale);
         const intro = introScales ? (introScales[i]?.v ?? 0) : 1;
+        const exit = getExitScale(index);
         const backAmount = gsap.utils.clamp(0, 1, (1 - Math.cos(angleRad)) * 0.5);
         const depthScale = 1 - backAmount * (1 - backScale);
         const frontBoost = 1 + (frontScale - 1) * (1 - backAmount);
-        const scale = baseScale * depthScale * frontBoost * getEdgeScale(y) * intro;
+        const scale = baseScale * depthScale * frontBoost * getEdgeScale(y) * intro * exit;
         const brightness = 1 - backAmount * backDark;
         const blur = backAmount * backBlur;
         gsap.set(card, {
@@ -4712,30 +4726,28 @@ function playTornadoIntro() {
 // Scroll hint: fades in after the intro, a dot loops down a thin line,
 // hides once the visitor scrolls, and scrolls one screen down on click.
 function initHeroPhoneExit() {
-  // Phones: the hero spiral tilts back and shrinks away as you start scrolling, then fades,
-  // while "Create for conversation." flips in below it (see revealFirstLine)
+  // Phones: as you start scrolling, the hero cards shrink back the way they grew in (outer
+  // cards first, the middle card last), while "Create for conversation." flips in below
+  // (see revealFirstLine). The shrinking itself happens in the tornado's render loop.
   if (reducedMotion) return;
   const mm = gsap.matchMedia();
   mm.add("(max-width: 767px)", () => {
-    nextPage.querySelectorAll('[data-3d-tornado-init]').forEach(container => {
-      const scene = container.querySelector('[data-3d-tornado-list]')?.parentElement;
-      if (!scene) return;
-      gsap.set(scene, { transformPerspective: 900, transformOrigin: "50% 100%" });
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          start: 0,
-          end: () => window.innerHeight * 0.8,
-          scrub: true,
-          invalidateOnRefresh: true,
+    const containers = nextPage.querySelectorAll('[data-3d-tornado-init]');
+    containers.forEach(container => {
+      ScrollTrigger.create({
+        start: 0,
+        end: () => window.innerHeight * 0.8,
+        invalidateOnRefresh: true,
+        onUpdate: (self) => {
+          container._exitProgress = self.progress;
+          // Fully shrunk: hide it, which also pauses the render loop
+          container.style.visibility = self.progress >= 1 ? "hidden" : "";
         },
       });
-      tl.to(scene, {
-        rotationX: 50,
-        yPercent: -18,
-        scale: 0.6,
-        ease: "power2.in",
-        duration: 1,
-      }, 0).to(container, { autoAlpha: 0, ease: "power1.in", duration: 0.6 }, 0.4);
+    });
+    return () => containers.forEach(container => {
+      container._exitProgress = 0;
+      container.style.visibility = "";
     });
   });
   onPageLeave(() => mm.revert());
