@@ -957,8 +957,22 @@ function initShutterScrollTransition() {
   }
 
   function createAnimation(wrapper, rows, section, mode) {
+    // A fixed section (the home hero) never moves, so trigger positions measured from it
+    // drift when ScrollTrigger refreshes mid-scroll and the shutter opened again further down.
+    // Use plain scroll distances instead, and hide the hero once the shutter is fully closed
+    // (it stays covered all the way down, and the tornado stops rendering).
+    const isFixed = getComputedStyle(section).position === "fixed";
+    const fixedEnd = parseFloat(wrapper.dataset.fixedEnd) || 0.55; // share of a screen height
     const tl = gsap.timeline({
-      scrollTrigger: {
+      scrollTrigger: isFixed ? {
+        start: 0,
+        end: () => window.innerHeight * fixedEnd,
+        scrub: defaultScrub,
+        invalidateOnRefresh: true,
+        onUpdate: (self) => {
+          section.style.visibility = self.progress >= 1 ? "hidden" : "";
+        },
+      } : {
         trigger: section,
         start: getScrollStart(wrapper, mode),
         end: getScrollEnd(wrapper, mode),
@@ -999,6 +1013,7 @@ function initShutterScrollTransition() {
     }
     const panel = instance.wrapper.querySelector("[data-shutter-scroll-panel]");
     if (panel) panel.remove();
+    (instance.wrapper.closest("section") || instance.wrapper.parentElement).style.visibility = "";
   }
 
   function buildAll(isPhone) {
@@ -3454,7 +3469,7 @@ function initStickyTitleScroll() {
     const masterTl = gsap.timeline({
       scrollTrigger: {
         trigger: wrap,
-        start: "top 40%",
+        start: "top 60%", // starts while the hero shutter is closing
         end: "bottom bottom",
         scrub: true,
       }
