@@ -403,6 +403,7 @@ function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
   const xPattern = [-5, 7.5, 10, 5, -10];
 
   const html = document.documentElement;
+  tornado._cardsLoaderActive = true;
   const srcs = [...new Set([...tornado.querySelectorAll("[data-3d-tornado-item] img")]
     .map(img => img.getAttribute("src")).filter(Boolean))].slice(0, cardCount);
 
@@ -507,7 +508,10 @@ function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
     tl.to(transitionPanel, { yPercent: -200, duration: 1 }, "startEnter");
     tl.to(transitionPanelBottom, { scaleY: 0, duration: 1 }, "<");
     tl.from(next, { y: "25dvh", duration: 1 }, "startEnter");
-    tl.call(() => tornado._playIntro?.(), null, "startEnter+=0.15");
+    tl.call(() => {
+      tornado._cardsLoaderActive = false;
+      tornado._playIntro?.();
+    }, null, "startEnter+=0.15");
     tl.add("pageReady");
     tl.set([transitionPanel, transitionLogo], { autoAlpha: 0 }, "pageReady");
     tl.set(transitionLogo, { clearProps: "y,scale,transformOrigin" }, "pageReady");
@@ -1280,7 +1284,10 @@ function init3DCardsTornado() {
       });
     };
     // Safety net: never leave the cards invisible if afterEnter doesn't fire
-    introFallback = gsap.delayedCall(8, container._playIntro);
+    // (not while the cards loader is still on screen: it starts the intro itself)
+    introFallback = gsap.delayedCall(8, () => {
+      if (!container._cardsLoaderActive) container._playIntro();
+    });
 
     if (canHover) {
       inputObserver = Observer.create({
