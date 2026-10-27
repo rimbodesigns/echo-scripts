@@ -393,7 +393,9 @@ function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
   transitionPanelBottom, transitionLogo, transitionLogoPath, transitionWrap }) {
   // Feel — tweak here
   const cardCount = 5;
-  const minTime = 2.2; // seconds after the page started loading before the cards may fall
+  const logoHold = 1; // seconds the Echo logo stays in the middle before it moves down
+  const logoMargin = 40; // px between the logo and the bottom of the screen
+  const minTime = 3.2; // seconds after the page started loading before the cards may fall
   const maxTime = 4.5; // the cards fall by now, even if photos are still loading
   const scaleDecrease = 0.1; // scale difference between the cards in the deck
   const yOffset = -7.5; // vertical spacing between the cards in the deck (% of a card)
@@ -407,10 +409,33 @@ function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
   const srcs = [...new Set([...tornado.querySelectorAll("[data-3d-tornado-item] img")]
     .map(img => img.getAttribute("src")).filter(Boolean))].slice(0, cardCount);
 
-  // Take over from the head CSS: the panel already covers the page and shows the logo
+  // Take over from the head CSS: the panel already covers the page. On this first visit the
+  // head CSS shows the handwritten Echo logo (html.echo-cards-first) instead of the ECHO
+  // lettering of the page transition; a real copy of it takes over in the same spot
+  const brandSvg = document.querySelector(".underlay-nav__logo-2 svg");
+  const brand = document.createElement("div");
+  brand.setAttribute("aria-hidden", "true");
+  brand.style.cssText = "position:fixed;left:50%;top:50%;width:clamp(7rem,14vw,11rem);" +
+    "color:#f4f4f4;pointer-events:none;";
+  if (brandSvg) {
+    const copy = brandSvg.cloneNode(true);
+    copy.removeAttribute("width");
+    copy.removeAttribute("height");
+    copy.style.cssText = "display:block;width:100%;height:auto;";
+    brand.appendChild(copy);
+  }
+  let cssLogoOpacity = 1;
+  try {
+    cssLogoOpacity = parseFloat(getComputedStyle(transitionWrap, "::after").opacity);
+    if (!Number.isFinite(cssLogoOpacity)) cssLogoOpacity = 1;
+  } catch (e) { /* keep 1 */ }
+  gsap.set(brand, { xPercent: -50, yPercent: -50, opacity: cssLogoOpacity });
+  transitionWrap.appendChild(brand);
+  html.classList.remove("echo-cards-first");
+
   gsap.set(transitionPanel, { autoAlpha: 1, y: 0, yPercent: -100 });
   gsap.set(transitionPanelBottom, { scaleY: 1, height: "20vw" });
-  gsap.set(transitionLogo, { autoAlpha: 1 });
+  gsap.set(transitionLogo, { autoAlpha: brandSvg ? 0 : 1 });
   gsap.set(transitionLogoPath, { y: 0, yPercent: 0 });
   html.classList.add("is-loaded");
 
@@ -444,17 +469,22 @@ function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
   const stackProp = (prop, total) => (index) => stack(index, total)[prop];
   const patternValue = (pattern, index) => pattern[index % pattern.length];
 
-  // 1. The logo moves down out of the way, the cards drop in and stack up
-  const logoRect = transitionLogo.getBoundingClientRect();
+  // 1. The logo shows a moment in the middle, moves down, then the cards drop in and stack up
+  const logo = brandSvg ? brand : transitionLogo;
+  const logoScale = 0.7;
   const inTl = gsap.timeline();
-  inTl.to(transitionLogo, {
-    y: () => window.innerHeight - logoRect.bottom - 32,
-    scale: 0.6,
-    transformOrigin: "50% 100%",
+  if (brandSvg) inTl.to(brand, { opacity: 1, duration: 0.4, ease: "power2.out" }, 0);
+  inTl.to(logo, {
+    y: () => {
+      const rect = logo.getBoundingClientRect();
+      const height = rect.height * logoScale;
+      return window.innerHeight - logoMargin - height / 2 - (rect.top + rect.height / 2);
+    },
+    scale: logoScale,
     duration: 1,
     ease: "osmo",
-  }, 0);
-  inTl.to(list, { opacity: 1, duration: 0.3 }, 0.2);
+  }, logoHold);
+  inTl.to(list, { opacity: 1, duration: 0.3 }, logoHold + 0.2);
   inTl.fromTo(cards, { rotate: 0.001, scale: 0.5, yPercent: 0 }, {
     rotate: 0.001,
     scale: stackProp("scale", cards.length),
@@ -499,12 +529,16 @@ function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
     });
 
     tl.add("startEnter", totalFallStagger + 0.35);
-    tl.to(transitionLogoPath, {
-      yPercent: -130,
-      duration: 0.9,
-      ease: "expo.inOut",
-      stagger: { amount: -0.06 },
-    }, "startEnter-=0.5");
+    if (brandSvg) {
+      tl.to(brand, { yPercent: 50, opacity: 0, duration: 0.6, ease: "power3.in" }, "startEnter-=0.5");
+    } else {
+      tl.to(transitionLogoPath, {
+        yPercent: -130,
+        duration: 0.9,
+        ease: "expo.inOut",
+        stagger: { amount: -0.06 },
+      }, "startEnter-=0.5");
+    }
     tl.to(transitionPanel, { yPercent: -200, duration: 1 }, "startEnter");
     tl.to(transitionPanelBottom, { scaleY: 0, duration: 1 }, "<");
     tl.from(next, { y: "25dvh", duration: 1 }, "startEnter");
@@ -516,7 +550,10 @@ function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
     tl.set([transitionPanel, transitionLogo], { autoAlpha: 0 }, "pageReady");
     tl.set(transitionLogo, { clearProps: "y,scale,transformOrigin" }, "pageReady");
     tl.set(next, { clearProps: "transform,willChange" }, "pageReady");
-    tl.call(() => deck.remove(), null, "pageReady");
+    tl.call(() => {
+      deck.remove();
+      brand.remove();
+    }, null, "pageReady");
     return tl;
   });
 }
@@ -973,9 +1010,6 @@ function initShutterScrollTransition() {
         end: () => window.innerHeight * fixedEnd,
         scrub: defaultScrub,
         invalidateOnRefresh: true,
-        onUpdate: (self) => {
-          section.style.visibility = self.progress >= 1 ? "hidden" : "";
-        },
       } : {
         trigger: section,
         start: getScrollStart(wrapper, mode),
@@ -997,6 +1031,13 @@ function initShutterScrollTransition() {
       stagger: { each: defaultStaggerAmount, from: "end" },
       ease: "none",
     });
+    // Hide only once the (scrubbed, so slightly lagging) animation itself has closed the last
+    // row at the top; going by the scroll position flashed the hero away too early
+    if (isFixed) {
+      tl.eventCallback("onUpdate", () => {
+        section.style.visibility = tl.progress() >= 0.999 ? "hidden" : "";
+      });
+    }
     return tl;
   }
 
