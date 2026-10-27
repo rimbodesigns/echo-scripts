@@ -991,7 +991,7 @@ function init3DCardsTornado() {
     // Scroll-out on phones (initHeroPhoneExit sets container._exitProgress 0 → 1): the
     // reverse of the intro, outer cards shrink away first and the middle card last
     const exitEase = gsap.parseEase("power2.inOut");
-    const exitSpread = 0.55; // how far the outer cards run ahead of the middle one
+    const exitSpread = 0.35; // how far the outer cards run ahead of the middle one (lower = calmer)
 
     function getExitScale(index) {
       const progress = container._exitProgress || 0;
@@ -4733,10 +4733,16 @@ function initHeroPhoneExit() {
   const mm = gsap.matchMedia();
   mm.add("(max-width: 767px)", () => {
     const containers = nextPage.querySelectorAll('[data-3d-tornado-init]');
+    // The cards sit fixed behind the page. The section after "Create for conversation." has a
+    // solid background, so they must be gone before its top edge slides over them
+    const title = nextPage.querySelector('section[data-sticky-title]');
+    const nextSection = title?.nextElementSibling;
     containers.forEach(container => {
       ScrollTrigger.create({
         start: 0,
-        end: () => window.innerHeight * 0.8,
+        ...(nextSection
+          ? { endTrigger: nextSection, end: "top 72%" }
+          : { end: () => window.innerHeight * 0.8 }),
         invalidateOnRefresh: true,
         onUpdate: (self) => {
           container._exitProgress = self.progress;
