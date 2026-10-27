@@ -425,16 +425,40 @@ function initLenis() {
 function initScrollAway() {
   if (!hasScrollTrigger) return;
   nextPage.querySelectorAll('[data-scroll-away]').forEach((el) => {
-    gsap.to(el, {
-      y: () => -window.innerHeight,
-      ease: 'none',
-      scrollTrigger: {
-        start: 0,
-        end: () => window.innerHeight,
-        scrub: true,
-        invalidateOnRefresh: true,
-      },
+    const mm = gsap.matchMedia();
+    // Phones: the whole block slides up and out
+    mm.add('(max-width: 767px)', () => {
+      gsap.to(el, {
+        y: () => -window.innerHeight,
+        ease: 'none',
+        scrollTrigger: {
+          start: 0,
+          end: () => window.innerHeight,
+          scrub: true,
+          invalidateOnRefresh: true,
+        },
+      });
     });
+    // Larger screens: the text stays put and its words drop away one after another into
+    // their line masks (the reverse of the reveal). initRevealGroups splits the words once
+    // the fonts are in and hands them over with the reveal:words event
+    el.addEventListener('reveal:words', ({ detail: words }) => {
+      mm.add('(min-width: 768px)', () => {
+        gsap.to(words, {
+          yPercent: 110,
+          ease: 'power2.in',
+          duration: 0.6,
+          stagger: { each: 0.035 },
+          scrollTrigger: {
+            start: 0,
+            end: () => window.innerHeight * 0.5,
+            scrub: 0.6,
+            invalidateOnRefresh: true,
+          },
+        });
+      });
+    }, { once: true });
+    onPageLeave(() => mm.revert());
   });
 }
 
@@ -4686,10 +4710,16 @@ function initRevealGroups() {
 
     // Split after fonts are loaded so the lines are measured correctly
     document.fonts.ready.then(() => {
-      const lines = [...texts].flatMap(el =>
+      // Text that scrolls away word by word (initScrollAway) is split into words as well
+      const withWords = group.matches('[data-scroll-away]');
+      const splits = [...texts].map(el =>
         // aria: 'none': a <p> can't carry aria-label; plain lines stay readable
-        SplitText.create(el, { type: 'lines', mask: 'lines', aria: 'none' }).lines
+        SplitText.create(el, { type: withWords ? 'lines,words' : 'lines', mask: 'lines', aria: 'none' })
       );
+      const lines = splits.flatMap(split => split.lines);
+      if (withWords) {
+        group.dispatchEvent(new CustomEvent('reveal:words', { detail: splits.flatMap(split => split.words) }));
+      }
 
       const tl = gsap.timeline({ delay });
       tl.set(group, { visibility: 'visible' }, 0)
