@@ -7,6 +7,9 @@ let lenis = null;
 let nextPage = document;
 let onceFunctionsInitialized = false;
 let pageCleanups = [];
+// Seconds the page is already in view before afterEnter runs (the panel lifts first); the
+// first screen's text reveal and tornado intro start that much earlier so they sync with it
+let enterLead = 0;
 const onPageLeave = (fn) => pageCleanups.push(fn);
 
 let radialSliderDraggables = [];
@@ -82,6 +85,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-scroll-indicator]')) initScrollIndicator();
   if (has('[data-scroll-away]')) initScrollAway();
   initPageHeightWatcher();
+  enterLead = 0;
 
   if (hasLenis) {
     lenis.resize();
@@ -213,7 +217,9 @@ function runPageEnterAnimation(next) {
     y: "25dvh",
     duration: 1,
   }, "startEnter");
+  tl.call(playTornadoIntroOn, [next], "startEnter+=0.15");
   tl.add("pageReady");
+  enterLead = tl.labels.pageReady - tl.labels.startEnter;
   tl.set(next, { clearProps: "transform,willChange" },
     "pageReady"); // ← clears the leftover y-transform so position:fixed children stay fixed
   tl.call(resetPage, [next], "pageReady");
@@ -308,7 +314,9 @@ function runPageLoader(next) {
         y: "25dvh",
         duration: 1,
       }, "startEnter");
+      tl.call(playTornadoIntroOn, [next], "startEnter+=0.15");
       tl.add("pageReady");
+      enterLead = tl.duration() - tl.labels.startEnter;
       tl.set(next, { clearProps: "transform,willChange" }, "pageReady");
       return tl;
     });
@@ -554,6 +562,7 @@ function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
       tornado._playIntro?.();
     }, null, "startEnter+=0.15");
     tl.add("pageReady");
+    enterLead = tl.labels.pageReady - tl.labels.startEnter;
     tl.set([transitionPanel, transitionLogo], { autoAlpha: 0 }, "pageReady");
     tl.set(transitionLogo, { clearProps: "y,scale,transformOrigin" }, "pageReady");
     tl.set(next, { clearProps: "transform,willChange" }, "pageReady");
@@ -4915,7 +4924,9 @@ function initRevealGroups() {
   nextPage.querySelectorAll('[data-reveal-group]').forEach(group => {
     const images = group.querySelectorAll('[data-reveal="image"]');
     const texts = group.querySelectorAll('[data-reveal="text"]');
-    const delay = parseFloat(group.dataset.revealDelay) || 0;
+    const inFirstScreen = group.getBoundingClientRect().top < window.innerHeight;
+    const delay = Math.max(0, (parseFloat(group.dataset.revealDelay) || 0) -
+      (inFirstScreen ? enterLead : 0));
     const textAt = images.length ? textStart : 0; // text-only groups start right away
 
     if (reducedMotion) {
@@ -4962,6 +4973,11 @@ function initRevealGroups() {
 }
 
 // Plays the tornado's page-load intro (built in init3DCardsTornado) once the page has entered
+// Called from the loader and page-enter timelines as the panel lifts
+function playTornadoIntroOn(page) {
+  page.querySelectorAll('[data-3d-tornado-init]').forEach(container => container._playIntro?.());
+}
+
 function playTornadoIntro() {
   nextPage.querySelectorAll('[data-3d-tornado-init]').forEach(container => {
     container._playIntro?.();
