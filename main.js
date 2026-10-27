@@ -4763,15 +4763,15 @@ function initHeroPhoneExit() {
   const mm = gsap.matchMedia();
   mm.add("(max-width: 767px)", () => {
     const containers = nextPage.querySelectorAll('[data-3d-tornado-init]');
-    // The cards sit fixed behind the page. The section after "Create for conversation." has a
-    // solid background, so they must be gone before its top edge slides over them
-    const title = nextPage.querySelector('section[data-sticky-title]');
-    const nextSection = title?.nextElementSibling;
+    // The cards keep shrinking behind "Create for conversation." and are only fully gone once
+    // that heading reaches the upper middle of the screen (the next section, with its solid
+    // background, slides in below it)
+    const heading = nextPage.querySelector('section[data-sticky-title] [data-sticky-title="heading"]');
     containers.forEach(container => {
       ScrollTrigger.create({
         start: 0,
-        ...(nextSection
-          ? { endTrigger: nextSection, end: "top 72%" }
+        ...(heading
+          ? { endTrigger: heading, end: "center 30%" }
           : { end: () => window.innerHeight * 0.8 }),
         invalidateOnRefresh: true,
         onUpdate: (self) => {
