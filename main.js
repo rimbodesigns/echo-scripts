@@ -259,6 +259,16 @@ function runPageLoader(next) {
   const secondsLeft = (until) => new Promise(resolve =>
     setTimeout(resolve, Math.max(0, until - performance.now() / 1000) * 1000));
 
+  // First visit of the homepage this session: the hero photos drop in as a deck of cards
+  const tornado = next.querySelector("[data-3d-tornado-init]");
+  let seenCards = false;
+  try { seenCards = sessionStorage.getItem("echoCardsLoader") === "1"; } catch (e) { /* no storage */ }
+  if (tornado && !seenCards && !reducedMotion) {
+    try { sessionStorage.setItem("echoCardsLoader", "1"); } catch (e) { /* no storage */ }
+    return runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
+      transitionPanelBottom, transitionLogo, transitionLogoPath, transitionWrap });
+  }
+
   return Promise.race([loaded, secondsLeft(maxTime)])
     .then(() => secondsLeft(minTime))
     .then(() => {
@@ -375,6 +385,137 @@ barba.init({
     }
   }],
 });
+
+// First visit of the homepage: the hero photos drop in as a stacked deck on the loader panel,
+// wait there until the page is ready, fall away one by one, and the tornado opens up behind
+// them (Osmo "Dropping Cards" loading animation, built from the hero's own photos)
+function runCardsLoader({ next, tornado, loaded, secondsLeft, transitionPanel,
+  transitionPanelBottom, transitionLogo, transitionLogoPath, transitionWrap }) {
+  // Feel — tweak here
+  const cardCount = 5;
+  const minTime = 2.2; // seconds after the page started loading before the cards may fall
+  const maxTime = 4.5; // the cards fall by now, even if photos are still loading
+  const scaleDecrease = 0.1; // scale difference between the cards in the deck
+  const yOffset = -7.5; // vertical spacing between the cards in the deck (% of a card)
+  const totalFallStagger = 0.75; // time between the first and the last card starting to fall
+  const deckMoveDuration = 1; // the rest of the deck moving up a place
+  const rotationPattern = [-10, 10, -15, 10, 20];
+  const xPattern = [-5, 7.5, 10, 5, -10];
+
+  const html = document.documentElement;
+  const srcs = [...new Set([...tornado.querySelectorAll("[data-3d-tornado-item] img")]
+    .map(img => img.getAttribute("src")).filter(Boolean))].slice(0, cardCount);
+
+  // Take over from the head CSS: the panel already covers the page and shows the logo
+  gsap.set(transitionPanel, { autoAlpha: 1, y: 0, yPercent: -100 });
+  gsap.set(transitionPanelBottom, { scaleY: 1, height: "20vw" });
+  gsap.set(transitionLogo, { autoAlpha: 1 });
+  gsap.set(transitionLogoPath, { y: 0, yPercent: 0 });
+  html.classList.add("is-loaded");
+
+  const deck = document.createElement("div");
+  deck.setAttribute("aria-hidden", "true");
+  deck.style.cssText = "position:fixed;inset:0;pointer-events:none;overflow:clip;";
+  const list = document.createElement("div");
+  list.style.cssText = "position:absolute;left:50%;top:50%;width:clamp(9.5rem,20vw,15rem);" +
+    "aspect-ratio:3/4;opacity:0;";
+  const cards = srcs.map(src => {
+    const card = document.createElement("div");
+    card.style.cssText = "position:absolute;inset:0;border-radius:0.5em;overflow:hidden;" +
+      "box-shadow:0 1.5em 3em rgba(0,0,0,0.35);";
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = "";
+    img.decoding = "async";
+    img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+    card.appendChild(img);
+    list.appendChild(card);
+    return card;
+  });
+  deck.appendChild(list);
+  transitionWrap.appendChild(deck);
+  gsap.set(list, { xPercent: -50, yPercent: -50 });
+
+  const stack = (index, total) => {
+    const reverseIndex = total - 1 - index;
+    return { scale: 1 - reverseIndex * scaleDecrease, yPercent: reverseIndex * yOffset };
+  };
+  const stackProp = (prop, total) => (index) => stack(index, total)[prop];
+  const patternValue = (pattern, index) => pattern[index % pattern.length];
+
+  // 1. The logo moves down out of the way, the cards drop in and stack up
+  const logoRect = transitionLogo.getBoundingClientRect();
+  const inTl = gsap.timeline();
+  inTl.to(transitionLogo, {
+    y: () => window.innerHeight - logoRect.bottom - 32,
+    scale: 0.6,
+    transformOrigin: "50% 100%",
+    duration: 1,
+    ease: "osmo",
+  }, 0);
+  inTl.to(list, { opacity: 1, duration: 0.3 }, 0.2);
+  inTl.fromTo(cards, { rotate: 0.001, scale: 0.5, yPercent: 0 }, {
+    rotate: 0.001,
+    scale: stackProp("scale", cards.length),
+    yPercent: stackProp("yPercent", cards.length),
+    stagger: -0.05,
+    duration: 1.5,
+    ease: "elastic.out(1,0.7)",
+  }, "<");
+
+  // 2. While the page is still loading the deck breathes gently
+  const breathe = gsap.to(list, { y: -8, duration: 1.4, ease: "sine.inOut", yoyo: true,
+    repeat: -1, delay: 1.2 });
+  const ready = Promise.race([loaded, secondsLeft(maxTime)]).then(() => secondsLeft(minTime));
+
+  // 3. The cards fall one by one, the panel lifts and the tornado opens up
+  return Promise.all([inTl, ready]).then(() => {
+    breathe.kill();
+    gsap.to(list, { y: 0, duration: 0.4, ease: "sine.out" });
+
+    const tl = gsap.timeline();
+    const fallCards = cards.slice().reverse();
+    const fallStagger = totalFallStagger / Math.max(cards.length - 1, 1);
+    fallCards.forEach((card, fallIndex) => {
+      const remaining = cards.slice(0, cards.indexOf(card));
+      const at = fallIndex * fallStagger;
+      if (remaining.length) {
+        tl.to(remaining, {
+          scale: stackProp("scale", remaining.length),
+          yPercent: stackProp("yPercent", remaining.length),
+          duration: deckMoveDuration,
+          ease: "sine.inOut",
+        }, at);
+      }
+      tl.to(card, {
+        y: () => window.innerHeight - card.getBoundingClientRect().top +
+          card.getBoundingClientRect().height,
+        xPercent: patternValue(xPattern, fallIndex),
+        rotate: patternValue(rotationPattern, fallIndex),
+        duration: 0.8,
+        ease: "power4.in",
+      }, at);
+    });
+
+    tl.add("startEnter", totalFallStagger + 0.35);
+    tl.to(transitionLogoPath, {
+      yPercent: -130,
+      duration: 0.9,
+      ease: "expo.inOut",
+      stagger: { amount: -0.06 },
+    }, "startEnter-=0.5");
+    tl.to(transitionPanel, { yPercent: -200, duration: 1 }, "startEnter");
+    tl.to(transitionPanelBottom, { scaleY: 0, duration: 1 }, "<");
+    tl.from(next, { y: "25dvh", duration: 1 }, "startEnter");
+    tl.call(() => tornado._playIntro?.(), null, "startEnter+=0.15");
+    tl.add("pageReady");
+    tl.set([transitionPanel, transitionLogo], { autoAlpha: 0 }, "pageReady");
+    tl.set(transitionLogo, { clearProps: "y,scale,transformOrigin" }, "pageReady");
+    tl.set(next, { clearProps: "transform,willChange" }, "pageReady");
+    tl.call(() => deck.remove(), null, "pageReady");
+    return tl;
+  });
+}
 
 // -----------------------------------------
 // GENERIC + HELPERS
@@ -1124,7 +1265,7 @@ function init3DCardsTornado() {
       });
     };
     // Safety net: never leave the cards invisible if afterEnter doesn't fire
-    introFallback = gsap.delayedCall(5, container._playIntro);
+    introFallback = gsap.delayedCall(8, container._playIntro);
 
     if (canHover) {
       inputObserver = Observer.create({
