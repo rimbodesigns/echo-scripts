@@ -3064,7 +3064,7 @@ function init3dPerspectiveTiles() {
           stepTimeline?.kill();
           settleTween?.kill();
           startProgress = currentProgress();
-          container.setPointerCapture?.(event.pointerId);
+          try { container.setPointerCapture(event.pointerId); } catch (e) { /* pointer already gone */ }
         }
         const now = performance.now();
         const dt = Math.max(1, now - lastTime) / 1000;
