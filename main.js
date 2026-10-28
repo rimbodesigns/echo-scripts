@@ -40,6 +40,23 @@ function initOnceFunctions() {
     initCursorMarqueeEffect();
   }
   initTabTitleSwitch();
+  initNoImageDrag();
+}
+
+// Photos can't be dragged out as files or highlighted, and the drag-to-move parts of the
+// site never select the text around them while you drag
+function initNoImageDrag() {
+  const style = document.createElement("style");
+  style.textContent =
+    "img{-webkit-user-drag:none;user-select:none;-webkit-user-select:none}" +
+    "[data-drag-gallery],[data-cascading-slider-wrap],[data-perspective-tiles-init]," +
+    "[data-interactive-collage-init],[data-radial-slider-init]" +
+    "{user-select:none;-webkit-user-select:none}" +
+    "html.is-dragging,html.is-dragging *{user-select:none!important;-webkit-user-select:none!important}";
+  document.head.appendChild(style);
+  document.addEventListener("dragstart", (event) => {
+    if (event.target instanceof HTMLImageElement) event.preventDefault();
+  });
 }
 
 function initBeforeEnterFunctions(next) {
@@ -1417,9 +1434,13 @@ function init3DCardsTornado() {
         onChange: handleInput,
         onPress: () => {
           container.style.cursor = 'grabbing';
+          // Observer listens on the whole window: no text selection while dragging the spiral
+          document.documentElement.classList.add('is-dragging');
+          window.getSelection?.().removeAllRanges();
         },
         onRelease: () => {
           container.style.cursor = 'grab';
+          document.documentElement.classList.remove('is-dragging');
         },
       });
     }
