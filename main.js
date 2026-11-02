@@ -68,6 +68,10 @@ function initBeforeEnterFunctions(next) {
   if (has('[data-drag-gallery]')) prepareDragGalleries();
   if (has('[data-echo-sticker]')) initEchoSticker();
   if (has('[data-accordion-css-init]')) closeAccordionsOnEnter();
+  // Collective polaroids stay hidden until initRadialCardsSlider has laid them out (the page
+  // head does the same for a direct visit; Barba doesn't bring page head code along)
+  nextPage.querySelectorAll('[data-radial-slider-init]:not([data-radial-ready]) [data-radial-slider-list]')
+    .forEach(track => gsap.set(track, { autoAlpha: 0 }));
 }
 
 function initAfterEnterFunctions(next) {
