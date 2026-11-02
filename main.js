@@ -4187,9 +4187,9 @@ function initEchoSticker() {
 
     const radius = 72;
     ring.append(make('path', { id, d: `M 100 ${100 - radius} a ${radius} ${radius} 0 1 1 -0.01 0`, fill: 'none' }));
-    const text = make('text', { class: 'echo-sticker__text', 'font-size': 13, 'letter-spacing': '0.06em' });
+    const text = make('text', { class: 'echo-sticker__text', 'font-size': 13 });
     text.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve');
-    const textPath = make('textPath', { href: `#${id}`, textLength: (2 * Math.PI * radius - 4).toFixed(1), lengthAdjust: 'spacing' });
+    const textPath = make('textPath', { href: `#${id}` });
     textPath.textContent = ringText;
     text.append(textPath);
     ring.append(text);
@@ -4202,6 +4202,18 @@ function initEchoSticker() {
     svg.append(mark);
 
     host.append(svg);
+
+    // Spread the letters so the text closes the ring exactly (textLength on a textPath isn't
+    // reliable across browsers): measure once the font is in, then set the letter spacing
+    const circumference = 2 * Math.PI * radius;
+    const fit = () => {
+      text.setAttribute('letter-spacing', 0);
+      const natural = text.getComputedTextLength();
+      if (!natural) return;
+      text.setAttribute('letter-spacing', ((circumference - natural) / ringText.length).toFixed(3));
+    };
+    fit();
+    document.fonts?.ready.then(fit);
   });
 }
 
