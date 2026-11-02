@@ -67,6 +67,7 @@ function initBeforeEnterFunctions(next) {
   if (has('[data-cascading-slider-wrap]')) initCascadingSlider();
   if (has('[data-drag-gallery]')) prepareDragGalleries();
   if (has('[data-echo-sticker]')) initEchoSticker();
+  if (has('[data-accordion-css-init]')) closeAccordionsOnEnter();
 }
 
 function initAfterEnterFunctions(next) {
@@ -2023,6 +2024,20 @@ function initNumberOdometer() {
     }
     return arr
   }
+}
+
+// Accordions stay open in the Designer (data-accordion-status="active", so the answers are easy
+// to edit) and start closed on the site. An item with data-accordion-start="open" stays open.
+function closeAccordionsOnEnter() {
+  nextPage.querySelectorAll('[data-accordion-css-init] [data-accordion-status="active"]').forEach(item => {
+    if (item.getAttribute('data-accordion-start') === 'open') return;
+    // Close without the slide animation: this happens before the page is shown
+    const animated = item.querySelectorAll('.accordion-css__item-bottom, .accordion-css__item-icon');
+    animated.forEach(el => { el.style.transition = 'none'; });
+    item.setAttribute('data-accordion-status', 'not-active');
+    void item.offsetHeight;
+    animated.forEach(el => { el.style.transition = ''; });
+  });
 }
 
 function initAccordionCSS() {
