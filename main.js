@@ -3116,6 +3116,13 @@ function initRadialCardsSlider() {
 
     isInView = ScrollTrigger.isInViewport(container);
     if (isInView) queueNext();
+
+    // The Collective page head hides the cards until they're laid out on the arc (no flash of
+    // the unstyled stack); fade them in once, not again on every resize
+    if (!container.hasAttribute('data-radial-ready')) {
+      container.setAttribute('data-radial-ready', '');
+      gsap.fromTo(track, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6, ease: 'power2.out' });
+    }
   });
 
   if (initRadialCardsSlider._resize) {
