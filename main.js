@@ -1365,20 +1365,29 @@ function init3DCardsTornado() {
         const frontBoost = 1 + (frontScale - 1) * (1 - backAmount);
         const exit = getExitScale(index, backAmount);
         const scale = baseScale * depthScale * frontBoost * getEdgeScale(y) * intro * exit;
-        const brightness = 1 - backAmount * backDark;
-        const blur = backAmount * backBlur;
-        gsap.set(card, {
-          xPercent: -50,
-          yPercent: -50,
-          x: Math.sin(angleRad) * radius,
-          y,
-          z: (Math.cos(angleRad) - 1) * radius,
-          rotateY: angleDeg,
-          scale,
-          filter: `brightness(${brightness}) blur(${blur}em)`,
-          autoAlpha: 1 - backAmount * backFade,
-          zIndex: Math.round(center * 1000)
-        });
+        // Written straight to the style instead of gsap.set (that's ~40 tweens a frame, heavy
+        // on phones), and filter/opacity/z-index only when they change
+        const last = card._tornadoStyle || (card._tornadoStyle = {});
+        // Fully shrunk (past the ends of the spiral, or not grown in yet): hide it, skip the rest
+        if (scale < 0.001) {
+          if (last.visible !== false) card.style.visibility = 'hidden';
+          last.visible = false;
+          return;
+        }
+        if (last.visible !== true) card.style.visibility = 'inherit';
+        last.visible = true;
+        const x = Math.sin(angleRad) * radius;
+        const z = (Math.cos(angleRad) - 1) * radius;
+        card.style.transform = `translate(-50%, -50%) translate3d(${x}px, ${y}px, ${z}px) ` +
+          `rotateY(${angleDeg}deg) scale(${scale})`;
+        const brightness = (1 - backAmount * backDark).toFixed(3);
+        const blur = (backAmount * backBlur).toFixed(3);
+        const filter = backBlur ? `brightness(${brightness}) blur(${blur}em)` : `brightness(${brightness})`;
+        if (last.filter !== filter) card.style.filter = last.filter = filter;
+        const opacity = (1 - backAmount * backFade).toFixed(3);
+        if (last.opacity !== opacity) card.style.opacity = last.opacity = opacity;
+        const zIndex = String(Math.round(center * 1000));
+        if (last.zIndex !== zIndex) card.style.zIndex = last.zIndex = zIndex;
       });
     }
 
