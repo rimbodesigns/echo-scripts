@@ -41,17 +41,21 @@ function initOnceFunctions() {
   }
   initTabTitleSwitch();
   initNoImageDrag();
-  initHideEmptySocials();
+  initScriptStyles();
 }
 
+// Styles that have to live in the script instead of in Webflow.
 // Case pages: a social link (data-case-social) without a link set in the Designer (href "#") is
 // left out, and the Socials box (data-case-socials) too when none of its links are filled in.
 // Only on the site: the Designer doesn't run this script, so Echo still sees the links to fill in
-function initHideEmptySocials() {
+function initScriptStyles() {
   const style = document.createElement("style");
   style.textContent =
     '[data-case-social][href="#"],[data-case-social]:not([href]){display:none}' +
-    '[data-case-socials]:not(:has([data-case-social][href]:not([href="#"]))){display:none}';
+    '[data-case-socials]:not(:has([data-case-social][href]:not([href="#"]))){display:none}' +
+    // Footer credit: the pixel heart is an SVG in an embed, so Webflow's Clean up sees its
+    // class as unused and drops the size. It lives here instead
+    '.end-bar__heart{flex-shrink:0;width:1.17em;height:1em;display:block}';
   document.head.appendChild(style);
 }
 
