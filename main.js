@@ -41,6 +41,18 @@ function initOnceFunctions() {
   }
   initTabTitleSwitch();
   initNoImageDrag();
+  initHideEmptySocials();
+}
+
+// Case pages: a social link (data-case-social) without a link set in the Designer (href "#") is
+// left out, and the Socials box (data-case-socials) too when none of its links are filled in.
+// Only on the site: the Designer doesn't run this script, so Echo still sees the links to fill in
+function initHideEmptySocials() {
+  const style = document.createElement("style");
+  style.textContent =
+    '[data-case-social][href="#"],[data-case-social]:not([href]){display:none}' +
+    '[data-case-socials]:not(:has([data-case-social][href]:not([href="#"]))){display:none}';
+  document.head.appendChild(style);
 }
 
 // Photos can't be dragged out as files or highlighted, and the drag-to-move parts of the
