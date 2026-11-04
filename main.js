@@ -84,10 +84,12 @@ function initBeforeEnterFunctions(next) {
   if (has('[data-drag-gallery]')) prepareDragGalleries();
   if (has('[data-echo-sticker]')) initEchoSticker();
   if (has('[data-accordion-css-init]')) closeAccordionsOnEnter();
-  // Collective polaroids stay hidden until initRadialCardsSlider has laid them out (the page
-  // head does the same for a direct visit; Barba doesn't bring page head code along)
-  nextPage.querySelectorAll('[data-radial-slider-init]:not([data-radial-ready]) [data-radial-slider-list]')
-    .forEach(track => gsap.set(track, { autoAlpha: 0 }));
+  // Collective polaroids: photos load and the arc is laid out while the transition panel still
+  // covers the page, so the cards are there when it lifts; autoplay starts in afterEnter
+  if (has('[data-radial-slider-init]')) {
+    nextPage.querySelectorAll('[data-radial-slider-init] img').forEach(img => { img.loading = 'eager'; });
+    initRadialCardsSlider(true);
+  }
 }
 
 function initAfterEnterFunctions(next) {
@@ -103,7 +105,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-form-validate]')) initAdvancedFormValidation();
   if (has('[data-interactive-collage-init]')) initCollageFocusCardOnHover();
   if (has('[data-momentum-hover-init]')) initMomentumBasedHover();
-  if (has('[data-radial-slider-init]')) initRadialCardsSlider();
+  if (has('[data-radial-slider-init]')) startRadialCardsSlider();
   if (has('[data-cta-card]')) initCtaCard();
   if (has('[data-perspective-tiles-init]')) init3dPerspectiveTiles();
   if (has('[data-sticky-title="wrap"]')) initStickyTitleScroll();
@@ -2770,8 +2772,19 @@ function initMomentumBasedHover() {
   });
 }
 
-function initRadialCardsSlider() {
+// Autoplay waits for the ScrollTrigger in afterEnter: Barba kills every ScrollTrigger in
+// afterLeave, after the cards were already laid out in beforeEnter
+function startRadialCardsSlider() {
+  nextPage.querySelectorAll('[data-radial-slider-init]').forEach(container => {
+    if (container._radialStart) container._radialStart();
+    else initRadialCardsSlider();
+  });
+}
+
+// deferStart (beforeEnter): lay the cards out now, start autoplay later via startRadialCardsSlider
+function initRadialCardsSlider(deferStart) {
   if (typeof InertiaPlugin === "undefined" || typeof Draggable === "undefined") return;
+  deferStart = deferStart === true; // the resize listener passes its event
 
   const slideDuration = 1;
   const clickEase = 'radial';
@@ -3132,25 +3145,35 @@ function initRadialCardsSlider() {
       if (!draggable.isThrowing) queueNext();
     });
 
-    ScrollTrigger.create({
-      trigger: container,
-      start: "top bottom",
-      end: "bottom top",
-      onToggle: self => {
-        isInView = self.isActive;
-        if (isInView) queueNext();
-        else stopAutoplay();
-      }
-    });
+    const startWatching = () => {
+      container._radialStart = null;
+      ScrollTrigger.create({
+        trigger: container,
+        start: "top bottom",
+        end: "bottom top",
+        onToggle: self => {
+          isInView = self.isActive;
+          if (isInView) queueNext();
+          else stopAutoplay();
+        }
+      });
 
-    isInView = ScrollTrigger.isInViewport(container);
-    if (isInView) queueNext();
+      isInView = ScrollTrigger.isInViewport(container);
+      if (isInView) queueNext();
+    };
+    if (deferStart) container._radialStart = startWatching;
+    else startWatching();
 
     // The Collective page head hides the cards until they're laid out on the arc (no flash of
-    // the unstyled stack); fade them in once, not again on every resize
+    // the unstyled stack). Laid out under the transition panel they're simply shown; on a direct
+    // visit they fade in once, not again on every resize
     if (!container.hasAttribute('data-radial-ready')) {
       container.setAttribute('data-radial-ready', '');
-      gsap.fromTo(track, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6, ease: 'power2.out' });
+      if (deferStart && document.documentElement.classList.contains('is-loaded')) {
+        gsap.set(track, { autoAlpha: 1 });
+      } else {
+        gsap.fromTo(track, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6, ease: 'power2.out' });
+      }
     }
   });
 
