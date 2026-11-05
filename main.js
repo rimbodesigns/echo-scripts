@@ -645,6 +645,7 @@ function applyThemeFrom(container) {
 function initLenis() {
   if (lenis) return; // already created
   if (!hasLenis) return;
+  normalizeWheelLines();
   lenis = new Lenis({
     lerp: 0.165,
     wheelMultiplier: 1.25,
@@ -656,6 +657,36 @@ function initLenis() {
     lenis.raf(time * 1000);
   });
   gsap.ticker.lagSmoothing(0);
+}
+
+// Firefox (and Zen, which is Firefox) reports a mouse wheel in lines, not pixels. Lenis 1.0.23
+// reads every delta as pixels, so one wheel click moved the page about 3px. Wheel events in lines
+// or pages are swapped for the same event in pixels before Lenis (or anything else) sees them.
+// Scroll areas with data-lenis-prevent keep their native scrolling
+function normalizeWheelLines() {
+  const lineHeight = 100 / 6; // what later Lenis versions use for a line
+  window.addEventListener("wheel", event => {
+    if (!event.isTrusted || event.deltaMode === 0 || event.ctrlKey) return;
+    const prevented = event.composedPath().some(el => el.hasAttribute?.("data-lenis-prevent") ||
+      el.hasAttribute?.("data-lenis-prevent-wheel"));
+    if (prevented) return;
+    const scale = event.deltaMode === 1 ? lineHeight : window.innerHeight;
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    event.target.dispatchEvent(new WheelEvent("wheel", {
+      deltaX: event.deltaX * scale,
+      deltaY: event.deltaY * scale,
+      deltaMode: 0,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    }));
+  }, { capture: true, passive: false });
 }
 
 // Text at the bottom of a fixed hero (the tagline): scroll it up with the page during the first
