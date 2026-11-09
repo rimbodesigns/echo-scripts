@@ -55,7 +55,16 @@ function initScriptStyles() {
     '[data-case-socials]:not(:has([data-case-social][href]:not([href="#"]))){display:none}' +
     // Footer credit: the pixel heart is an SVG in an embed, so Webflow's Clean up sees its
     // class as unused and drops the size. It lives here instead
-    '.end-bar__heart{flex-shrink:0;width:1.17em;height:1em;display:block}';
+    '.end-bar__heart{flex-shrink:0;width:1.17em;height:1em;display:block}' +
+    // Menu: the top bar lies over the panel, only its logo and Close button catch clicks, so the
+    // language toggle next to Close can be clicked
+    '.underlay-nav__header{pointer-events:none}' +
+    '.underlay-nav__header a,.underlay-nav__header button{pointer-events:auto}' +
+    // Language toggle: which language is active is only known here (initLanguageToggle)
+    '.lang-toggle{font-family:var(--font--geist)}' +
+    '.lang-toggle__link{opacity:.65;transition:opacity .2s ease,background-color .2s ease,color .2s ease}' +
+    '.lang-toggle__link:hover{opacity:1}' +
+    '.lang-toggle__link[aria-current="true"]{opacity:1;background-color:#f5f0ea;color:#22201c;pointer-events:none}';
   document.head.appendChild(style);
 }
 
@@ -97,6 +106,7 @@ function initAfterEnterFunctions(next) {
   // Runs after enter animation completes
   // if (has('[data-something]')) initSomething();
   if (has('[data-underlay-nav-menu]')) initFixedUnderlayNavigation();
+  if (has('[data-lang-link]')) initLanguageToggle();
   if (has('[data-button-animate-chars]')) initButtonCharacterStagger();
   if (has('[data-shutter-scroll-transition]')) initShutterScrollTransition();
   if (has('[data-3d-tornado-init]')) initHeroPhoneExit();
@@ -790,6 +800,20 @@ function debounceOnWidthChange(fn, ms) {
       }
     }, ms);
   };
+}
+
+// EN / NL in the menu: both links point to this same page in the other language. They reload the
+// page (data-barba-prevent), because Barba only swaps the page and not the language of the rest
+function initLanguageToggle() {
+  const isEnglish = /^\/en(\/|$)/.test(location.pathname);
+  const dutchPath = location.pathname.replace(/^\/en(?=\/|$)/, "") || "/";
+  const englishPath = dutchPath === "/" ? "/en" : "/en" + dutchPath;
+  nextPage.querySelectorAll("[data-lang-link]").forEach(link => {
+    const english = link.getAttribute("data-lang-link") === "en";
+    link.setAttribute("href", english ? englishPath : dutchPath);
+    if (english === isEnglish) link.setAttribute("aria-current", "true");
+    else link.removeAttribute("aria-current");
+  });
 }
 
 function initBarbaNavUpdate(data) {
