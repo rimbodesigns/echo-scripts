@@ -1842,8 +1842,44 @@ function initCascadingSlider() {
       });
       activeIndex = normalizedTarget;
       layout(true, previousIndex);
-      gsap.delayedCall(duration + 0.05, function () { isAnimating = false; });
+      gsap.delayedCall(duration + 0.05, function () {
+        isAnimating = false;
+        if (queuedStep) {
+          const step = queuedStep;
+          queuedStep = 0;
+          goTo(activeIndex + step);
+        }
+      });
     }
+    // Touch: swipe left or right for the next or previous slide, the page still scrolls up and
+    // down. A swipe never counts as a tap on the slide link. A swipe during the animation waits
+    // for it to finish, so quick swipes in a row all count
+    let queuedStep = 0;
+    let swipeStart = null;
+    let swiped = false;
+    viewport.style.touchAction = 'pan-y';
+    viewport.addEventListener('pointerdown', function (event) {
+      swiped = false;
+      swipeStart = event.pointerType === 'mouse' ? null : { x: event.clientX, y: event.clientY };
+    });
+    viewport.addEventListener('pointerup', function (event) {
+      if (!swipeStart) return;
+      const dx = event.clientX - swipeStart.x;
+      const dy = event.clientY - swipeStart.y;
+      swipeStart = null;
+      if (Math.abs(dx) < 30 || Math.abs(dx) < Math.abs(dy)) return;
+      swiped = true;
+      const step = dx < 0 ? 1 : -1;
+      if (isAnimating) queuedStep = step;
+      else goTo(activeIndex + step);
+    });
+    viewport.addEventListener('pointercancel', function () { swipeStart = null; });
+    viewport.addEventListener('click', function (event) {
+      if (!swiped) return;
+      swiped = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
     if (prevButton) prevButton.addEventListener('click', function () { goTo(activeIndex - 1); });
     if (nextButton) nextButton.addEventListener('click', function () { goTo(activeIndex + 1); });
     slides.forEach(function (slide, index) {
