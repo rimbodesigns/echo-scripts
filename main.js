@@ -86,6 +86,7 @@ function initNoImageDrag() {
 
 function initBeforeEnterFunctions(next) {
   nextPage = next || document;
+  if (isEnglishPage()) initEnglishPage();
   // Runs before the enter animation
   // if (has('[data-something]')) initSomething();
   if (has('[data-3d-tornado-init]')) init3DCardsTornado();
@@ -802,10 +803,80 @@ function debounceOnWidthChange(fn, ms) {
   };
 }
 
+function isEnglishPage() {
+  return /^\/en(\/|$)/.test(location.pathname);
+}
+
+// What Webflow's translation can't reach: attributes (cursor text, screen reader labels, alts,
+// placeholders) and a few labels. Exact matches on the Dutch text, so a changed Dutch text simply
+// stays Dutch here until it's added
+const englishStrings = {
+  "Echo Creative Agency, naar de homepage": "Echo Creative Agency, to the homepage",
+  "Ons Verhaal": "Our Story",
+  "Je e-mailadres": "Your email address",
+  "naam@email.nl": "name@email.com",
+  "Aanmelden": "Subscribe",
+  "bekijk het project": "view the project",
+  "Get in contact": "Get in touch",
+  "Het team van Echo": "The Echo team",
+  "Toon testimonial": "Show testimonial",
+  "Ontdek de services": "Discover our services",
+  "Ontdek de services · ": "Discover our services · ",
+  "Leer ons kennen": "Get to know us",
+  "Mail ons": "Email us",
+  "WhatsApp ons": "WhatsApp us",
+  "Ga naar maker 1": "Go to creator 1",
+  "Ga naar maker 2": "Go to creator 2",
+  "Ga naar maker 3": "Go to creator 3",
+  "Ga naar maker 4": "Go to creator 4",
+  "Ga naar maker 5": "Go to creator 5",
+  "Liever bellen? Bel {name}": "Prefer to call? Call {name}",
+  "Handen aan een retro computer met een gele telefoon": "Hands on a retro computer with a yellow phone",
+  "Gele draaischijftelefoon met een smartphone op een betonvloer": "Yellow rotary phone with a smartphone on a concrete floor",
+  "Lune, co-founder van Echo": "Lune, co-founder of Echo",
+  "Lieke, co-founder van Echo": "Lieke, co-founder of Echo",
+  "Ylene, content manager bij Echo": "Ylene, content manager at Echo",
+  "Sophie, content manager bij Echo": "Sophie, content manager at Echo",
+  "Het Echo-team op het podium bij de Hanze": "The Echo team on stage at Hanze",
+  "Het Echo-team achter de schermen met de camera": "The Echo team behind the scenes with the camera",
+  "Het Echo-team samen aan de bar": "The Echo team together at the bar",
+  "Het Echo-team aan het werk in de vensterbank": "The Echo team at work on the windowsill",
+  "Het Echo-team lachend op een avondje uit": "The Echo team laughing on a night out",
+  "Het Echo-team op het strand": "The Echo team on the beach",
+  "Het Echo-team op een trap in de zon": "The Echo team on a staircase in the sun",
+  "Het Echo-team fotografeert een shoot in een restaurant": "The Echo team on a shoot in a restaurant",
+};
+
+function initEnglishPage() {
+  const attributes = ["aria-label", "alt", "placeholder", "data-cursor-marquee-text",
+    "data-random-call-label"];
+  nextPage.querySelectorAll(attributes.map(name => `[${name}]`).join(",")).forEach(el => {
+    attributes.forEach(name => {
+      const english = englishStrings[el.getAttribute(name)];
+      if (english) el.setAttribute(name, english);
+    });
+  });
+
+  const walker = document.createTreeWalker(nextPage, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const english = englishStrings[walker.currentNode.nodeValue.trim()];
+    if (english) walker.currentNode.nodeValue = english;
+  }
+
+  // Links typed in as a URL (case slides, footer) don't get the /en from Webflow and would lead
+  // back to the Dutch site
+  nextPage.querySelectorAll('a[href^="/"]:not([data-lang-link])').forEach(link => {
+    const href = link.getAttribute("href");
+    if (!/^\/en(\/|$|#|\?)/.test(href) && !href.startsWith("//")) {
+      link.setAttribute("href", href === "/" ? "/en" : "/en" + href);
+    }
+  });
+}
+
 // EN / NL in the menu: both links point to this same page in the other language. They reload the
 // page (data-barba-prevent), because Barba only swaps the page and not the language of the rest
 function initLanguageToggle() {
-  const isEnglish = /^\/en(\/|$)/.test(location.pathname);
+  const isEnglish = isEnglishPage();
   const dutchPath = location.pathname.replace(/^\/en(?=\/|$)/, "") || "/";
   const englishPath = dutchPath === "/" ? "/en" : "/en" + dutchPath;
   nextPage.querySelectorAll("[data-lang-link]").forEach(link => {
