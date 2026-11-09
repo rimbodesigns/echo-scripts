@@ -64,7 +64,23 @@ function initScriptStyles() {
     '.lang-toggle{font-family:var(--font--geist)}' +
     '.lang-toggle__link{opacity:.65;transition:opacity .2s ease,background-color .2s ease,color .2s ease}' +
     '.lang-toggle__link:hover{opacity:1}' +
-    '.lang-toggle__link[aria-current="true"]{opacity:1;background-color:#f5f0ea;color:#22201c;pointer-events:none}';
+    '.lang-toggle__link[aria-current="true"]{opacity:1;background-color:#f5f0ea;color:#22201c;pointer-events:none}' +
+    '@media (max-width:767px){' +
+    // Phones, "Create for conversation.": a soft band of blur behind the heading keeps it readable
+    // while the hero cards pass behind it. Same colour as the page, so it's invisible over nothing
+    '.sticky-title-container::before{content:"";position:absolute;left:0;right:0;top:50%;height:13rem;' +
+    'transform:translateY(-50%);pointer-events:none;' +
+    'background:linear-gradient(to bottom,rgba(245,240,234,0),rgba(245,240,234,.5) 22%,' +
+    'rgba(245,240,234,.85) 42%,rgba(245,240,234,.85) 58%,rgba(245,240,234,.5) 78%,rgba(245,240,234,0));' +
+    '-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);' +
+    '-webkit-mask-image:linear-gradient(to bottom,transparent,#000 35%,#000 65%,transparent);' +
+    'mask-image:linear-gradient(to bottom,transparent,#000 35%,#000 65%,transparent)}' +
+    // Phones, services tabs: all options in view on two rows, overrules the one row you swipe
+    // from the site head. The indicator already follows a tab to another row
+    '.bouncy-tabs__nav{flex-wrap:wrap;justify-content:center;overflow:visible;border-radius:1.6em;' +
+    '-webkit-mask-image:none;mask-image:none}' +
+    '.bouncy-tabs__nav::after{display:none}' +
+    '}';
   document.head.appendChild(style);
 }
 
